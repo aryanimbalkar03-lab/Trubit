@@ -22,6 +22,7 @@ import { TrubitMark } from "../components/Logo";
 import { CITY, RESTAURANTS } from "../data/catalog";
 import { rupees } from "../store/app-store";
 import { jobPay, usePlatform, type RiderJob } from "../store/platform";
+import { RiderProfileSchema, safeParse } from "../lib/validation";
 
 type RiderTab = "shift" | "job" | "earnings" | "profile";
 
@@ -34,6 +35,17 @@ function RiderOnboarding() {
   const [vehicle, setVehicle] = useState<"cycle" | "scooter" | "bike">("scooter");
   const [city, setCity] = useState("Bengaluru");
   const [agreed, setAgreed] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const handleOnboard = () => {
+    const res = safeParse(RiderProfileSchema, { name: name.trim(), vehicle, city });
+    if (!res.success) {
+      setErrors(res.errors);
+      return;
+    }
+    setErrors({});
+    if (agreed) onboardRider(res.data);
+  };
 
   return (
     <div className="space-y-6 px-5 pt-10 pb-32">
@@ -46,7 +58,10 @@ function RiderOnboarding() {
       </div>
 
       <Glass className="space-y-4 p-5">
-        <Field label="Your name" value={name} onChange={setName} placeholder="As on your ID" />
+        <div>
+          <Field label="Your name" value={name} onChange={setName} placeholder="As on your ID" />
+          {errors.name && <p className="mt-1 text-[11px] text-red-400">{errors.name}</p>}
+        </div>
         <div>
           <p className="mb-2 text-white/50">What do you ride?</p>
           <div className="grid grid-cols-3 gap-2">
@@ -66,7 +81,10 @@ function RiderOnboarding() {
             ))}
           </div>
         </div>
-        <Field label="City" value={city} onChange={setCity} placeholder="City" />
+        <div>
+          <Field label="City" value={city} onChange={setCity} placeholder="City" />
+          {errors.city && <p className="mt-1 text-[11px] text-red-400">{errors.city}</p>}
+        </div>
       </Glass>
 
       <Glass className="space-y-3 p-5">
@@ -103,7 +121,7 @@ function RiderOnboarding() {
         variant="solid"
         className="w-full py-4"
         disabled={!name.trim() || !agreed}
-        onClick={() => onboardRider({ name: name.trim(), vehicle, city })}
+        onClick={handleOnboard}
       >
         Start riding <ChevronRight className="size-4" />
       </GlassButton>
@@ -300,6 +318,8 @@ function ShiftScreen() {
       kind: "restaurant",
     })),
     { id: "me", ...CITY, kind: "you" },
+    { id: "surge-1", lat: CITY.lat + 0.005, lng: CITY.lng - 0.008, kind: "surge", label: "2.0x" },
+    { id: "surge-2", lat: CITY.lat - 0.012, lng: CITY.lng + 0.015, kind: "surge", label: "1.5x" },
   ];
 
   return (
@@ -349,8 +369,23 @@ function ShiftScreen() {
         </Glass>
       </div>
 
-      <div className="mt-6">
-        <DarkMap markers={markers} className="h-56 w-full" />
+      <div className="mt-6 space-y-3 px-5">
+        <Glass sheen className="p-4 flex items-center justify-between border border-orange-500/20">
+          <div>
+            <p className="text-white text-sm font-medium flex items-center gap-2">
+              <span className="size-2 rounded-full bg-orange-500 animate-pulse" />
+              Surge Zone Nearby
+            </p>
+            <p className="text-white/50 text-xs mt-0.5">Move to Koramangala for 2x surge pricing.</p>
+          </div>
+          <div className="bg-orange-500/20 text-orange-400 px-3 py-1 rounded-full text-xs font-bold border border-orange-500/30">
+            2.0x
+          </div>
+        </Glass>
+      </div>
+
+      <div className="mt-4">
+        <DarkMap markers={markers} className="h-56 w-full" zoomOut={1.2} />
       </div>
 
       <div className="mt-6 space-y-4 px-5">
@@ -385,6 +420,8 @@ function ShiftScreen() {
 function EarningsScreen() {
   const { riderLedger, todayEarnings } = usePlatform();
   const week = riderLedger.reduce((s, l) => s + l.amount, 0);
+  const avgTrip = 85;
+  const tipsPct = 12;
 
   const bars = useMemo(() => [720, 1180, 940, 1420, 1610, 1290, todayEarnings], [todayEarnings]);
   const peak = Math.max(...bars, 1);
@@ -425,9 +462,39 @@ function EarningsScreen() {
 
       <div className="mt-4 px-5">
         <Glass className="flex items-stretch divide-x divide-white/[0.08] p-0">
-          <Stat label="Trubit's cut" value="₹0" pad />
-          <Stat label="Tips kept" value="100%" pad />
+          <Stat label="Avg/Trip" value={rupees(avgTrip)} pad />
+          <Stat label="Tips" value={`${tipsPct}%`} pad />
           <Stat label="Payout" value="Instant" pad />
+        </Glass>
+      </div>
+
+      <div className="mt-6 px-5">
+        <Glass sheen className="p-5">
+          <p className="text-white/50 mb-1 text-sm">Monthly Summary</p>
+          <div className="flex justify-between items-end">
+            <h2 className="text-2xl text-white">{rupees(18450)}</h2>
+            <span className="text-green-400 text-sm flex items-center">↑ 14% vs last month</span>
+          </div>
+          <div className="mt-4 pt-4 border-t border-white/10 flex justify-between text-sm">
+            <span className="text-white/60">Rating Breakdown</span>
+            <span className="text-white flex gap-2">
+              <span>5★: 142</span> <span>4★: 12</span> <span>&lt;3★: 1</span>
+            </span>
+          </div>
+        </Glass>
+      </div>
+
+      <div className="mt-4 px-5">
+        <Glass className="p-5 border-blue-500/30 bg-blue-500/[0.02]">
+          <div className="flex justify-between mb-2">
+            <p className="text-white font-medium">Weekend Quest</p>
+            <span className="text-blue-400 font-bold">{rupees(100)} bonus</span>
+          </div>
+          <p className="text-white/60 text-sm mb-3">Complete 5 more trips before midnight.</p>
+          <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-500 w-[60%]" />
+          </div>
+          <p className="text-right text-white/40 text-xs mt-2">15 / 20 trips</p>
         </Glass>
       </div>
 
@@ -479,7 +546,7 @@ export function RiderApp({ tab }: { tab: RiderTab }) {
 }
 
 function RiderProfileScreen() {
-  const { rider, todayEarnings } = usePlatform();
+  const { rider, todayEarnings, setRole } = usePlatform();
   return (
     <div className="space-y-5 px-5 pt-8 pb-40">
       <div>
@@ -491,6 +558,35 @@ function RiderProfileScreen() {
         <Stat label="Trips" value={`${rider.totalTrips}`} pad />
         <Stat label="Today" value={rupees(todayEarnings)} pad />
       </Glass>
+      <div className="space-y-2">
+        <p className="tracking-[0.22em] text-white/40 uppercase text-xs">Performance Metrics</p>
+        <Glass className="p-5 space-y-4">
+          <div className="flex justify-between items-center">
+            <span className="text-white/60">Average delivery time</span>
+            <span className="text-white">22 mins</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-white/60">On-time delivery</span>
+            <span className="text-green-400">98%</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-white/60">Customer rating</span>
+            <span className="text-white flex items-center gap-1">4.9 <Star className="size-3 text-orange-400 fill-orange-400" /> <span className="text-green-400 text-xs ml-1">↑</span></span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-white/60">Acceptance rate</span>
+            <div className="text-right">
+              <span className="text-orange-400 block">62%</span>
+              <span className="text-[10px] text-orange-400/70">Warning: low</span>
+            </div>
+          </div>
+          <div className="pt-2 border-t border-white/10">
+            <p className="text-white/50 text-sm">💡 Peak hours insight</p>
+            <p className="text-white mt-1 text-sm">You earn 40% more during 7-9 PM.</p>
+          </div>
+        </Glass>
+      </div>
+
       <Glass className="p-5">
         <Line icon={Bike} label="Vehicle" sub={rider.vehicle} />
         <Line icon={MapPin} label="City" sub={rider.city} />
@@ -499,8 +595,11 @@ function RiderProfileScreen() {
           label="Verification"
           sub={rider.verified ? "Verified rider" : "Pending"}
         />
-        <Line icon={Star} label="Acceptance rate" sub="Not tracked. Declining costs you nothing." />
       </Glass>
+
+      <GlassButton variant="outline" className="w-full py-4 mt-4" onClick={() => setRole("user")}>
+        Order food for yourself <ChevronRight className="size-4 ml-1" />
+      </GlassButton>
     </div>
   );
 }

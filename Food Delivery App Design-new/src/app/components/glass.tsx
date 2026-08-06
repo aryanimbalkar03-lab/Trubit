@@ -46,18 +46,18 @@ export function Glass({
 }) {
   return (
     <motion.div
-      transition={{ type: "spring", stiffness: 320, damping: 30 }}
+      transition={{ type: "spring", stiffness: 350, damping: 32 }}
       {...rest}
       className={cx(
-        "relative overflow-hidden rounded-3xl border backdrop-blur-2xl",
+        "relative overflow-hidden rounded-3xl border backdrop-blur-2xl backdrop-saturate-[150%] transition-all duration-300",
         tone === "dark"
-          ? "border-white/10 bg-white/[0.045] shadow-[0_8px_40px_-12px_rgba(0,0,0,0.9)] ring-1 ring-white/[0.03] ring-inset"
+          ? "border-white/[0.14] bg-gradient-to-b from-white/[0.08] to-white/[0.03] shadow-[0_12px_45px_-10px_rgba(0,0,0,0.95)] ring-1 ring-white/[0.05] ring-inset"
           : "border-black/10 bg-black/[0.04]",
         className,
       )}
     >
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/45 to-transparent" />
-      <span className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/55 to-transparent" />
+      <span className="pointer-events-none absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
       {sheen && <Sheen delay={sheenDelay} />}
       {children}
     </motion.div>
@@ -97,19 +97,21 @@ export function GlassButton({
 }) {
   const styles = {
     ghost:
-      "border border-white/12 bg-white/[0.06] text-white backdrop-blur-xl hover:bg-white/[0.12]",
-    solid: "bg-white text-black hover:bg-white/90",
-    outline: "border border-white/25 text-white hover:bg-white/10",
+      "border border-white/15 bg-white/[0.08] text-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.6)] backdrop-blur-2xl hover:bg-white/[0.15] hover:border-white/25 active:scale-95 transition-all duration-200",
+    solid:
+      "bg-gradient-to-r from-white via-neutral-100 to-white text-black font-semibold shadow-[0_0_25px_-4px_rgba(255,255,255,0.45)] hover:shadow-[0_0_35px_0px_rgba(255,255,255,0.7)] active:scale-95 transition-all duration-200",
+    outline:
+      "border border-white/30 text-white hover:bg-white/10 hover:border-white/50 active:scale-95 transition-all duration-200",
   }[variant];
 
   return (
     <motion.button
-      whileTap={{ scale: 0.955 }}
-      whileHover={{ y: -2 }}
-      transition={{ type: "spring", stiffness: 380, damping: 26, mass: 0.6 }}
+      whileTap={{ scale: 0.94 }}
+      whileHover={{ y: -2, scale: 1.01 }}
+      transition={{ type: "spring", stiffness: 400, damping: 26, mass: 0.6 }}
       {...rest}
       className={cx(
-        "relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-full px-5 py-3 tracking-wide transition-colors duration-300 outline-none",
+        "relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-full px-5 py-3 tracking-wide transition-all duration-300 outline-none select-none cursor-pointer",
         styles,
         className,
       )}
@@ -140,14 +142,15 @@ export function Chip({
 }) {
   return (
     <motion.button
-      whileTap={{ scale: 0.94 }}
+      whileTap={{ scale: 0.92 }}
+      whileHover={{ scale: 1.02, y: -1 }}
       transition={{ type: "spring", stiffness: 420, damping: 28 }}
       onClick={onClick}
       className={cx(
-        "shrink-0 rounded-full border px-4 py-2 whitespace-nowrap backdrop-blur-xl transition-colors duration-300",
+        "shrink-0 rounded-full border px-4 py-2 whitespace-nowrap backdrop-blur-2xl transition-all duration-300 select-none cursor-pointer text-sm font-medium",
         active
-          ? "border-white bg-white text-black"
-          : "border-white/12 bg-white/[0.05] text-white/70 hover:text-white",
+          ? "border-white bg-white text-black font-semibold shadow-[0_0_20px_rgba(255,255,255,0.4)]"
+          : "border-white/15 bg-white/[0.06] text-white/75 hover:bg-white/[0.14] hover:text-white hover:border-white/30",
         className,
       )}
     >

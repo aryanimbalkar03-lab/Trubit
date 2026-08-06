@@ -1,5 +1,6 @@
-import { createContext, useContext, useMemo, useReducer, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
 import { RESTAURANTS, type Dish, type Restaurant } from "../data/catalog";
+import { persist, hydrate, emit, EVENTS, startOrderLifecycle } from "../lib/sync-engine";
 
 export type CartLine = { dish: Dish; qty: number };
 
@@ -39,7 +40,7 @@ type Action =
   | { type: "setCutlery"; cutlery: boolean };
 
 const seedRestaurant = RESTAURANTS[3];
-const initial: State = {
+const seedState: State = {
   cart: [],
   cartRestaurantId: null,
   favourites: ["r3", "r7"],
@@ -71,6 +72,9 @@ const initial: State = {
   address: "42, Ashwood Residency, Indiranagar",
   cutlery: false,
 };
+
+/* Hydrate from localStorage, falling back to seed data */
+const initial: State = hydrate<State>("app_state", seedState);
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -148,6 +152,11 @@ const AppCtx = createContext<Ctx | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initial);
 
+  /* Persist state to localStorage on every change */
+  useEffect(() => {
+    persist("app_state", state);
+  }, [state]);
+
   const value = useMemo<Ctx>(() => {
     const subtotal = state.cart.reduce((s, l) => s + l.dish.price * l.qty, 0);
     return {
@@ -156,9 +165,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       removeItem: (dishId) => dispatch({ type: "remove", dishId }),
       clearCart: () => dispatch({ type: "clear" }),
       toggleFav: (restaurantId) => dispatch({ type: "toggleFav", restaurantId }),
-      placeOrder: (order) => dispatch({ type: "placeOrder", order }),
-      completeOrder: (orderId) => dispatch({ type: "completeOrder", orderId }),
-      cancelOrder: (orderId) => dispatch({ type: "cancelOrder", orderId }),
+      placeOrder: (order) => {
+        dispatch({ type: "placeOrder", order });
+        /* Cross-profile sync: notify rider & partner dashboards */
+        emit(EVENTS.ORDER_PLACED, order);
+        startOrderLifecycle(order.id);
+      },
+      completeOrder: (orderId) => {
+        dispatch({ type: "completeOrder", orderId });
+        emit(EVENTS.ORDER_DELIVERED, { orderId });
+      },
+      cancelOrder: (orderId) => {
+        dispatch({ type: "cancelOrder", orderId });
+        emit(EVENTS.ORDER_CANCELLED, { orderId });
+      },
       setAddress: (address) => dispatch({ type: "setAddress", address }),
       setCutlery: (cutlery) => dispatch({ type: "setCutlery", cutlery }),
       qtyOf: (dishId) => state.cart.find((l) => l.dish.id === dishId)?.qty ?? 0,

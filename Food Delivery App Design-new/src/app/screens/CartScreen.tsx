@@ -21,6 +21,7 @@ import { TrubitMark } from "../components/Logo";
 import { MoneySplit } from "../components/MoneySplit";
 import { listedElsewhere, rupees, useApp, type Order } from "../store/app-store";
 import { usePlatform } from "../store/platform";
+import { verifyOrderIntegrity, checkRateLimit } from "../lib/security";
 
 const ADDRESSES = [
   { id: "home", label: "Home", icon: Home, line: "42, Ashwood Residency, Indiranagar" },
@@ -84,6 +85,23 @@ export function CartScreen({
   }
 
   const handlePlace = () => {
+    // 1. Anti-Bot / DDoS Rate Limiting check
+    const rateCheck = checkRateLimit("checkout", 3, 12);
+    if (!rateCheck.permitted) {
+      alert(`Security Shield Throttled: Too many rapid checkouts. Try again in ${rateCheck.tryAgainIn}s.`);
+      return;
+    }
+
+    // 2. Financial Integrity Check (Cross-reference cart item pricing with server catalog)
+    const audit = verifyOrderIntegrity(
+      cart.map((l) => ({ id: l.dish.id, price: l.dish.price, count: l.qty })),
+      subtotal
+    );
+    if (!audit.secure) {
+      alert(`🚨 Security Shield Triggered:\n${audit.message}`);
+      return;
+    }
+
     setPlacing(true);
     const order: Order = {
       id: `TRB-${Math.floor(1000 + Math.random() * 8999)}`,

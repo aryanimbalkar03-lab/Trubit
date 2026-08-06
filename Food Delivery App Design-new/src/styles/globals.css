@@ -1,4 +1,14 @@
-/* Trubit — monochrome glass system */
+/* Trubit — monochrome obsidian glass system */
+
+html, body {
+  background-color: #000000 !important;
+  color: #ffffff;
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
 
 .trubit {
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -6,29 +16,44 @@
   line-height: 1.45;
   letter-spacing: 0.01em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .trubit h1 {
   font-family: "Instrument Serif", ui-serif, Georgia, serif;
-  font-size: 30px;
+  font-size: 32px;
   line-height: 1.1;
   font-weight: 400;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 .trubit h2 {
   font-family: "Instrument Serif", ui-serif, Georgia, serif;
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1.2;
   font-weight: 400;
   white-space: pre-line;
+  letter-spacing: -0.01em;
 }
 
+/* Smooth native-like momentum scrolling & hidden scrollbar */
 .scrollbar-none {
   scrollbar-width: none;
   -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* Micro-interaction fluidity */
+button, a, [role="button"], input, select {
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  touch-action: manipulation;
+}
+
+/* Hardware accelerate glass blur layers */
+.trubit [class*="backdrop-blur"] {
+  will-change: transform;
 }

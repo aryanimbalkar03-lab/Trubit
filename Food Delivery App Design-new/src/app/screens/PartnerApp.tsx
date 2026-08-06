@@ -15,6 +15,10 @@ import {
   Flame,
   AlertTriangle,
   Percent,
+  Rocket,
+  Users,
+  Activity,
+  BarChart2
 } from "lucide-react";
 import { Glass, GlassButton, Chip, Divider, Sheen, cx } from "../components/glass";
 import { Sheet } from "../components/Sheet";
@@ -24,6 +28,9 @@ import { TrubitMark } from "../components/Logo";
 import { IMAGES, RESTAURANTS, type Dish, type Nutrition } from "../data/catalog";
 import { rupees, listedElsewhere } from "../store/app-store";
 import { usePlatform } from "../store/platform";
+import { createBoost, getBoostForRestaurant, BOOST_PRICING, type BoostSlot } from "../lib/sync-engine";
+import { RestaurantListingSchema, MenuItemSchema, NutritionSchema, safeParse } from "../lib/validation";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
 type PartnerTab = "dash" | "menu" | "analytics" | "profile";
 
@@ -40,8 +47,34 @@ function PartnerOnboarding() {
     gst: "",
     seats: "0",
   });
-  const set = (k: keyof typeof f) => (v: string) => setF((p) => ({ ...p, [k]: v }));
-  const ready = f.name.trim() && f.address.trim() && f.fssai.trim();
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const set = (k: keyof typeof f) => (v: string) => {
+    setF((p) => ({ ...p, [k]: v }));
+    setErrors((p) => ({ ...p, [k]: "" }));
+  };
+
+  const handleGoLive = () => {
+    const parsed = safeParse(RestaurantListingSchema, {
+      ...f,
+      seats: Number(f.seats) || 0,
+      gstin: f.gst,
+    });
+    
+    if (!parsed.success) {
+      setErrors(parsed.errors);
+      return;
+    }
+    
+    onboardPartner({
+      name: f.name.trim(),
+      cuisines: f.cuisines.trim(),
+      address: f.address.trim(),
+      fssai: f.fssai.trim(),
+      gst: f.gst.trim(),
+      seats: Number(f.seats) || 0,
+    });
+  };
 
   return (
     <div className="space-y-6 px-5 pt-10 pb-32">
@@ -62,26 +95,44 @@ function PartnerOnboarding() {
 
       <Glass className="space-y-4 p-5">
         <p className="text-white">The basics</p>
-        <Field label="Restaurant name" value={f.name} onChange={set("name")} placeholder="Monochrome Grill House" />
-        <Field label="Cuisines" value={f.cuisines} onChange={set("cuisines")} placeholder="American, Burgers, Grill" />
-        <Field label="Full address" value={f.address} onChange={set("address")} placeholder="Street, area, city" />
+        <div>
+          <Field label="Restaurant name" value={f.name} onChange={set("name")} placeholder="Monochrome Grill House" />
+          {errors.name && <p className="mt-1 text-[11px] text-red-400">{errors.name}</p>}
+        </div>
+        <div>
+          <Field label="Cuisines" value={f.cuisines} onChange={set("cuisines")} placeholder="American, Burgers, Grill" />
+          {errors.cuisines && <p className="mt-1 text-[11px] text-red-400">{errors.cuisines}</p>}
+        </div>
+        <div>
+          <Field label="Full address" value={f.address} onChange={set("address")} placeholder="Street, area, city" />
+          {errors.address && <p className="mt-1 text-[11px] text-red-400">{errors.address}</p>}
+        </div>
       </Glass>
 
       <Glass className="space-y-4 p-5">
         <p className="text-white">Compliance</p>
-        <Field label="FSSAI licence number" value={f.fssai} onChange={set("fssai")} placeholder="14 digits" />
-        <Field label="GSTIN (optional)" value={f.gst} onChange={set("gst")} placeholder="15 characters" />
+        <div>
+          <Field label="FSSAI licence number" value={f.fssai} onChange={set("fssai")} placeholder="14 digits" />
+          {errors.fssai && <p className="mt-1 text-[11px] text-red-400">{errors.fssai}</p>}
+        </div>
+        <div>
+          <Field label="GSTIN (optional)" value={f.gst} onChange={set("gst")} placeholder="15 characters" />
+          {errors.gstin && <p className="mt-1 text-[11px] text-red-400">{errors.gstin}</p>}
+        </div>
       </Glass>
 
       <Glass className="space-y-4 p-5">
         <p className="text-white">Dine-in</p>
-        <Field
-          label="Seats you can take (0 if delivery only)"
-          value={f.seats}
-          onChange={set("seats")}
-          placeholder="0"
-          numeric
-        />
+        <div>
+          <Field
+            label="Seats you can take (0 if delivery only)"
+            value={f.seats}
+            onChange={set("seats")}
+            placeholder="0"
+            numeric
+          />
+          {errors.seats && <p className="mt-1 text-[11px] text-red-400">{errors.seats}</p>}
+        </div>
         <p className="text-white/35">
           Dine-in orders cost us nothing to fulfil, so we charge you nothing on them. Not ₹9, not
           anything.
@@ -91,17 +142,7 @@ function PartnerOnboarding() {
       <GlassButton
         variant="solid"
         className="w-full py-4"
-        disabled={!ready}
-        onClick={() =>
-          onboardPartner({
-            name: f.name.trim(),
-            cuisines: f.cuisines.trim(),
-            address: f.address.trim(),
-            fssai: f.fssai.trim(),
-            gst: f.gst.trim(),
-            seats: Number(f.seats) || 0,
-          })
-        }
+        onClick={handleGoLive}
       >
         Go live <ChevronRight className="size-4" />
       </GlassButton>
@@ -275,6 +316,125 @@ function DishEditor({ dish, onClose }: { dish: Dish; onClose: () => void }) {
   );
 }
 
+function NewDishEditor({ onClose }: { onClose: () => void }) {
+  const [f, setF] = useState({
+    name: "",
+    price: "",
+    category: "",
+    description: "",
+    stock: "10",
+    prepMins: "15",
+  });
+  const [veg, setVeg] = useState(true);
+  const [n, setN] = useState<Nutrition>({
+    servingG: 200, kcal: 350, protein: 12, carbs: 45, fat: 10, fibre: 5, sodiumMg: 400
+  });
+  const [allergens, setAllergens] = useState<string[]>([]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const set = (k: keyof typeof f) => (v: string) => { setF((p) => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
+  const setNut = (k: keyof Nutrition) => (v: string) => setN((p) => ({ ...p, [k]: Number(v) || 0 }));
+
+  const save = () => {
+    const parsedMenu = safeParse(MenuItemSchema, {
+      name: f.name,
+      price: Number(f.price),
+      category: f.category,
+      veg,
+      description: f.description,
+      stock: Number(f.stock),
+      prepMins: Number(f.prepMins)
+    });
+    
+    const parsedNut = safeParse(NutritionSchema, n);
+
+    if (!parsedMenu.success || !parsedNut.success) {
+      setErrors({ ...(parsedMenu.success ? {} : parsedMenu.errors), ...(parsedNut.success ? {} : parsedNut.errors) });
+      return;
+    }
+
+    // In a real app we'd dispatch to add to store, here we just close since we don't have add to store action
+    onClose();
+  };
+
+  return (
+    <div className="space-y-5 px-5 pt-1 pb-8">
+      <div>
+        <p className="tracking-[0.22em] text-white/40 uppercase">New Dish</p>
+        <h2 className="mt-1 text-white">Add item to menu</h2>
+      </div>
+
+      <Glass className="space-y-4 p-5">
+        <p className="text-white">Details</p>
+        <div>
+          <Field label="Dish name" value={f.name} onChange={set("name")} />
+          {errors.name && <p className="mt-1 text-[11px] text-red-400">{errors.name}</p>}
+        </div>
+        <div>
+          <Field label="Price (₹)" value={f.price} onChange={set("price")} numeric />
+          {errors.price && <p className="mt-1 text-[11px] text-red-400">{errors.price}</p>}
+        </div>
+        <div>
+          <Field label="Category" value={f.category} onChange={set("category")} />
+          {errors.category && <p className="mt-1 text-[11px] text-red-400">{errors.category}</p>}
+        </div>
+        <div className="flex items-center gap-4 py-2">
+          <span className="text-white/60">Type</span>
+          <Chip active={veg} onClick={() => setVeg(true)}>Veg</Chip>
+          <Chip active={!veg} onClick={() => setVeg(false)}>Non-veg</Chip>
+        </div>
+        <Field label="Description" value={f.description} onChange={set("description")} />
+      </Glass>
+
+      <Glass className="space-y-4 p-5">
+        <p className="text-white">Kitchen</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Field label="Stock limit" value={f.stock} onChange={set("stock")} numeric />
+            {errors.stock && <p className="mt-1 text-[11px] text-red-400">{errors.stock}</p>}
+          </div>
+          <div>
+            <Field label="Prep time (m)" value={f.prepMins} onChange={set("prepMins")} numeric />
+            {errors.prepMins && <p className="mt-1 text-[11px] text-red-400">{errors.prepMins}</p>}
+          </div>
+        </div>
+      </Glass>
+
+      <Glass className="space-y-4 p-5">
+        <p className="text-white">Nutrition</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Serving (g)" value={String(n.servingG)} onChange={setNut("servingG")} numeric />
+          <Field label="Calories (kcal)" value={String(n.kcal)} onChange={setNut("kcal")} numeric />
+          <Field label="Protein (g)" value={String(n.protein)} onChange={setNut("protein")} numeric />
+          <Field label="Carbs (g)" value={String(n.carbs)} onChange={setNut("carbs")} numeric />
+          <Field label="Fat (g)" value={String(n.fat)} onChange={setNut("fat")} numeric />
+          <Field label="Fibre (g)" value={String(n.fibre)} onChange={setNut("fibre")} numeric />
+          <Field label="Sodium (mg)" value={String(n.sodiumMg)} onChange={setNut("sodiumMg")} numeric />
+        </div>
+        <Divider />
+        <p className="text-white/50">Allergens</p>
+        <div className="flex flex-wrap gap-2">
+          {["Gluten", "Dairy", "Egg", "Nuts", "Soy", "Fish", "Shellfish", "Sesame"].map((a) => (
+            <Chip
+              key={a}
+              active={allergens.includes(a)}
+              onClick={() =>
+                setAllergens((p) => (p.includes(a) ? p.filter((x) => x !== a) : [...p, a]))
+              }
+            >
+              {a}
+            </Chip>
+          ))}
+        </div>
+      </Glass>
+
+      <GlassButton variant="solid" className="w-full py-4" onClick={save}>
+        <Check className="size-4" /> Add Dish
+      </GlassButton>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ *
  * Menu manager
  * ------------------------------------------------------------------ */
@@ -282,6 +442,7 @@ function MenuScreen() {
   const { partner, effective, availableOf } = usePlatform();
   const restaurant = RESTAURANTS.find((r) => r.id === partner.restaurantId) ?? RESTAURANTS[0];
   const [editing, setEditing] = useState<Dish | null>(null);
+  const [addingNew, setAddingNew] = useState(false);
 
   return (
     <div className="pb-40">
@@ -331,15 +492,26 @@ function MenuScreen() {
                     </span>
                   </div>
                 </div>
-                <ChevronRight className="size-4 shrink-0 self-center text-white/30" />
+                {i === 0 && <Trophy className="size-4 shrink-0 text-white" />}
               </Glass>
             </motion.div>
           );
         })}
       </div>
+      
+      <button 
+        onClick={() => setAddingNew(true)}
+        className="fixed bottom-24 right-5 grid size-14 place-items-center rounded-full bg-white text-black shadow-lg shadow-white/20 z-10"
+      >
+        <Plus className="size-6" />
+      </button>
 
       <Sheet open={Boolean(editing)} onClose={() => setEditing(null)}>
         {editing && <DishEditor dish={editing} onClose={() => setEditing(null)} />}
+      </Sheet>
+      
+      <Sheet open={addingNew} onClose={() => setAddingNew(false)}>
+        <NewDishEditor onClose={() => setAddingNew(false)} />
       </Sheet>
     </div>
   );
@@ -348,9 +520,126 @@ function MenuScreen() {
 /* ------------------------------------------------------------------ *
  * Analytics — the funnel, the rank, and where you lose people.
  * ------------------------------------------------------------------ */
+
+function BoostSection({ restaurantId }: { restaurantId: string }) {
+  const activeBoost = getBoostForRestaurant(restaurantId);
+  const [creating, setCreating] = useState(false);
+
+  const startBoost = (tier: keyof typeof BOOST_PRICING) => {
+    const config = BOOST_PRICING[tier];
+    createBoost(restaurantId, tier, config.minBudget, 7, new Date().toISOString());
+    setCreating(false);
+  };
+
+  if (activeBoost) {
+    const roi = activeBoost.spent > 0 ? (activeBoost.orders * 250) / activeBoost.spent : 0;
+    
+    // Mock chart data for active boost
+    const chartData = [
+      { day: "Mon", spent: 40, orders: 12 },
+      { day: "Tue", spent: 50, orders: 15 },
+      { day: "Wed", spent: 80, orders: 22 },
+      { day: "Thu", spent: 65, orders: 18 },
+      { day: "Fri", spent: 120, orders: 35 },
+      { day: "Sat", spent: activeBoost.spent, orders: activeBoost.orders }
+    ];
+
+    return (
+      <div className="space-y-4">
+        <Glass sheen tone="light" className="p-5 border-white/20 bg-white/10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Rocket className="size-5 text-white" />
+              <h3 className="text-white text-lg font-medium tracking-tight">Campaign Active</h3>
+            </div>
+            <Chip className="bg-white text-black border-transparent">
+              {activeBoost.tier.charAt(0).toUpperCase() + activeBoost.tier.slice(1)}
+            </Chip>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 mb-5">
+            <div>
+              <p className="text-white/50 text-sm">Spent so far</p>
+              <p className="text-2xl text-white mt-1">{rupees(activeBoost.spent)}</p>
+              <p className="text-white/40 text-[11px] mt-1">out of {rupees(activeBoost.dailyBudget)}/day</p>
+            </div>
+            <div>
+              <p className="text-white/50 text-sm">Orders Generated</p>
+              <p className="text-2xl text-white mt-1">{activeBoost.orders}</p>
+              <p className="text-white/40 text-[11px] mt-1">~{roi.toFixed(1)}x ROI</p>
+            </div>
+            <div>
+              <p className="text-white/50 text-sm">Impressions</p>
+              <p className="text-white mt-1">{activeBoost.impressions.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-white/50 text-sm">Clicks</p>
+              <p className="text-white mt-1">{activeBoost.clicks.toLocaleString()}</p>
+            </div>
+          </div>
+
+          <div className="h-40 w-full mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#000', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+                <Line type="monotone" dataKey="orders" stroke="#fff" strokeWidth={2} dot={{ r: 4, fill: '#fff' }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Glass>
+        
+        <p className="text-center text-[11px] text-white/40 max-w-xs mx-auto">
+          This is how Trubit makes money — not from your food margins.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="text-center mb-6">
+        <Rocket className="size-8 text-white mx-auto mb-3 opacity-80" />
+        <h3 className="text-white text-xl">Boost Your Reach</h3>
+        <p className="text-white/50 text-sm mt-2 px-4">
+          This is how Trubit makes money — not from your food margins. Pay only for extra visibility.
+        </p>
+      </div>
+
+      {(Object.entries(BOOST_PRICING) as [keyof typeof BOOST_PRICING, typeof BOOST_PRICING[keyof typeof BOOST_PRICING]][]).map(([key, config], i) => (
+        <Glass key={key} sheen sheenDelay={i * 0.4} className="p-5 flex flex-col justify-between">
+          <div className="mb-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-white font-medium">{config.label}</h4>
+              <span className="text-white/60 text-sm">{rupees(config.minBudget)}/day</span>
+            </div>
+            <p className="text-white/40 text-sm mt-2">{config.description}</p>
+            <p className="text-white/40 text-[11px] mt-1">Est. {rupees(config.cpi)} per impression</p>
+          </div>
+          <div className="space-y-2 mb-5">
+            {config.features.map(f => (
+              <div key={f} className="flex items-center gap-2">
+                <Check className="size-3 text-white/50" />
+                <span className="text-white/70 text-xs">{f}</span>
+              </div>
+            ))}
+          </div>
+          <GlassButton onClick={() => startBoost(key)} variant={key === 'featured' ? 'solid' : 'ghost'} className="w-full">
+            Start {config.label}
+          </GlassButton>
+        </Glass>
+      ))}
+    </div>
+  );
+}
+
 function AnalyticsScreen() {
   const { partner, funnel, effective } = usePlatform();
   const restaurant = RESTAURANTS.find((r) => r.id === partner.restaurantId) ?? RESTAURANTS[0];
+  const [tab, setTab] = useState<"overview" | "boost">("overview");
 
   const rows = useMemo(
     () =>
@@ -396,24 +685,120 @@ function AnalyticsScreen() {
 
   const worstCtr = rows.reduce((w, r) => (r.ctr < w.ctr ? r : w), rows[0]);
   const worstClose = rows.reduce((w, r) => (r.closeRate < w.closeRate ? r : w), rows[0]);
+  
+  // Mock data for new charts
+  const revenueTrend = [
+    { day: "1", revenue: totals.revenue * 0.8 },
+    { day: "7", revenue: totals.revenue * 0.9 },
+    { day: "14", revenue: totals.revenue * 0.85 },
+    { day: "21", revenue: totals.revenue * 1.1 },
+    { day: "28", revenue: totals.revenue * 1.05 },
+    { day: "30", revenue: totals.revenue }
+  ];
+  
+  const hourlyOrders = [
+    { hour: "12PM", orders: 12 }, { hour: "1PM", orders: 24 }, { hour: "2PM", orders: 18 },
+    { hour: "6PM", orders: 30 }, { hour: "7PM", orders: 45 }, { hour: "8PM", orders: 60 }, { hour: "9PM", orders: 40 }
+  ];
 
   return (
     <div className="pb-40">
       <div className="px-5 pt-8 pb-5">
         <p className="tracking-[0.22em] text-white/45 uppercase">Performance</p>
-        <h1 className="mt-1 text-white">{rupees(totals.revenue)}</h1>
-        <p className="mt-1 text-white/45">
-          Last 30 days · you kept {rupees(totals.revenue - totals.orders * 9)} after our ₹9s
-        </p>
+        <div className="flex items-center justify-between mt-1">
+          <h1 className="text-white">{rupees(totals.revenue)}</h1>
+          <div className="flex bg-white/5 rounded-full p-1">
+            <button 
+              onClick={() => setTab("overview")}
+              className={cx("px-3 py-1 rounded-full text-xs font-medium transition-colors", tab === "overview" ? "bg-white text-black" : "text-white/60 hover:text-white")}
+            >
+              Overview
+            </button>
+            <button 
+              onClick={() => setTab("boost")}
+              className={cx("px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1", tab === "boost" ? "bg-white text-black" : "text-white/60 hover:text-white")}
+            >
+              Boost <Flame className={cx("size-3", tab === "boost" ? "text-black" : "text-white/60")} />
+            </button>
+          </div>
+        </div>
+        {tab === "overview" && <p className="mt-1 text-white/45">Last 30 days · you kept {rupees(totals.revenue - totals.orders * 9)} after our ₹9s</p>}
       </div>
 
-      <div className="px-5">
-        <Glass sheen className="flex items-stretch divide-x divide-white/[0.08] p-0">
-          <Metric label="City rank" value={`#${rank}`} />
-          <Metric label="Orders" value={`${totals.orders}`} />
-          <Metric label="Conversion" value={`${((totals.orders / totals.impressions) * 100).toFixed(1)}%`} />
-        </Glass>
-      </div>
+      {tab === "boost" ? (
+        <div className="px-5 mt-2">
+          <BoostSection restaurantId={restaurant.id} />
+        </div>
+      ) : (
+        <>
+          <div className="px-5">
+            <Glass sheen className="flex items-stretch divide-x divide-white/[0.08] p-0">
+              <Metric label="City rank" value={`#${rank}`} />
+              <Metric label="Orders" value={`${totals.orders}`} />
+              <Metric label="Conversion" value={`${((totals.orders / totals.impressions) * 100).toFixed(1)}%`} />
+            </Glass>
+          </div>
+          
+          {/* Enhanced Analytics Charts */}
+          <div className="mt-5 px-5">
+            <Glass className="p-5">
+              <p className="text-white mb-4">Revenue Trend (30 Days)</p>
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={revenueTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <XAxis dataKey="day" stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} axisLine={false} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', backdropFilter: 'blur(8px)' }}
+                      itemStyle={{ color: '#fff' }}
+                      formatter={(value: number) => [rupees(value), "Revenue"]}
+                    />
+                    <Line type="monotone" dataKey="revenue" stroke="#fff" strokeWidth={2} dot={false} activeDot={{ r: 6, fill: '#fff' }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Glass>
+          </div>
+
+          <div className="mt-5 px-5">
+            <div className="grid grid-cols-2 gap-4">
+              <Glass className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="size-4 text-white/50" />
+                  <p className="text-white/60 text-sm">Retention</p>
+                </div>
+                <p className="text-white text-xl">42%</p>
+                <p className="text-white/40 text-[11px] mt-1">Returning diners</p>
+              </Glass>
+              <Glass className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <BarChart2 className="size-4 text-white/50" />
+                  <p className="text-white/60 text-sm">Avg Order Value</p>
+                </div>
+                <p className="text-white text-xl">{rupees(totals.revenue / (totals.orders || 1))}</p>
+                <p className="text-white/40 text-[11px] mt-1">+12% vs last month</p>
+              </Glass>
+            </div>
+          </div>
+          
+          <div className="mt-5 px-5">
+            <Glass className="p-5">
+              <p className="text-white mb-4">Peak Hours Heatmap</p>
+              <div className="h-40 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={hourlyOrders}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <XAxis dataKey="hour" stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} axisLine={false} />
+                    <Tooltip 
+                      cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                      contentStyle={{ backgroundColor: '#000', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                    />
+                    <Bar dataKey="orders" fill="#fff" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Glass>
+          </div>
 
       {/* The funnel */}
       <div className="mt-5 px-5">
@@ -478,8 +863,10 @@ function AnalyticsScreen() {
                   <p className="text-white/40">
                     {r.orders} orders · {rupees(r.revenue)}
                   </p>
+                  <p className="text-[10px] text-white/30 mt-1">Competitors charge {rupees(listedElsewhere(r.dish.price))} for this</p>
                 </div>
                 {i === 0 && <Trophy className="size-4 shrink-0 text-white" />}
+                {i === rows.length - 1 && <AlertTriangle className="size-4 shrink-0 text-white/40" />}
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <Rate label="Open rate" v={r.ctr} />
@@ -490,6 +877,8 @@ function AnalyticsScreen() {
           </motion.div>
         ))}
       </div>
+      </>
+      )}
     </div>
   );
 }

@@ -10,6 +10,8 @@ import {
   ShieldCheck,
   Headphones,
   HandCoins,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 import { Glass, Chip, Sheen, cx } from "../components/glass";
@@ -17,6 +19,7 @@ import { TrubitBadge, TrubitMark } from "../components/Logo";
 import { RestaurantCard, SectionTitle } from "../components/pieces";
 import { CATEGORIES, CATEGORY_MATCH, COLLECTIONS, RESTAURANTS } from "../data/catalog";
 import { useApp } from "../store/app-store";
+import { getActiveBoosts, recordBoostImpression } from "../lib/sync-engine";
 
 const FILTERS = ["Fast Delivery", "Rating 4.5+", "Pure Veg", "Offers", "Under ₹500"] as const;
 
@@ -50,13 +53,27 @@ export function HomeScreen({
   onOpenRestaurant: (id: string) => void;
   onSearch: () => void;
 }) {
-  const { address } = useApp();
+  const { address, orders } = useApp();
   const [category, setCategory] = useState<string | null>(null);
   const [filters, setFilters] = useState<string[]>([]);
   const [perched, setPerched] = useState(true);
 
   const toggleFilter = (f: string) =>
     setFilters((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]));
+
+  /* Boosted restaurants get promoted to the top */
+  const boosts = useMemo(() => getActiveBoosts(), []);
+  const boostedIds = useMemo(() => new Set(boosts.map((b) => b.restaurantId)), [boosts]);
+
+  /* Personalized: restaurants user has ordered from most */
+  const frequentRestaurantIds = useMemo(() => {
+    const freq = new Map<string, number>();
+    orders.forEach((o) => freq.set(o.restaurantId, (freq.get(o.restaurantId) ?? 0) + 1));
+    return [...freq.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([id]) => id);
+  }, [orders]);
 
   const list = useMemo(() => {
     let out = [...RESTAURANTS];
@@ -69,43 +86,51 @@ export function HomeScreen({
     if (filters.includes("Pure Veg")) out = out.filter((r) => r.pureVeg);
     if (filters.includes("Offers")) out = out.filter((r) => Boolean(r.offer));
     if (filters.includes("Under ₹500")) out = out.filter((r) => r.priceForTwo <= 500);
+    /* Sort: boosted first, then by rating */
+    out.sort((a, b) => {
+      const aB = boostedIds.has(a.id) ? 1 : 0;
+      const bB = boostedIds.has(b.id) ? 1 : 0;
+      if (aB !== bB) return bB - aB;
+      return b.rating - a.rating;
+    });
+    /* Track boost impressions */
+    out.forEach((r) => {
+      if (boostedIds.has(r.id)) recordBoostImpression(r.id);
+    });
     return out;
-  }, [category, filters]);
+  }, [category, filters, boostedIds]);
 
   return (
-    <div className="pb-40">
+    <div className="pb-48">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-gradient-to-b from-black via-black/85 to-transparent px-5 pt-6 pb-4 backdrop-blur-xl">
-        <div className="flex items-start justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-white/45">
-              <MapPin className="size-3.5" />
-              <span className="tracking-[0.2em] uppercase">Deliver to</span>
+      <div className="sticky top-0 z-30 bg-gradient-to-b from-black via-black/90 to-transparent px-5 pt-6 pb-4 backdrop-blur-2xl">
+        <div className="flex items-start justify-between pr-32">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 text-white/50">
+              <motion.div
+                whileHover={{ rotate: 12, scale: 1.1 }}
+                onHoverStart={() => setPerched(false)}
+                onHoverEnd={() => setPerched(true)}
+              >
+                <TrubitBadge className="size-5 shrink-0" flying={!perched} />
+              </motion.div>
+              <span className="tracking-[0.2em] text-[11px] font-semibold uppercase">Deliver to</span>
             </div>
-            <button className="mt-1 flex max-w-[15rem] items-center gap-1.5 text-white">
-              <span className="truncate">{address}</span>
+            <button className="mt-1.5 flex max-w-[13.5rem] items-center gap-1.5 text-white hover:opacity-80 transition-opacity">
+              <MapPin className="size-3.5 shrink-0 text-white/70" />
+              <span className="truncate font-semibold text-sm">{address}</span>
               <ChevronDown className="size-4 shrink-0 text-white/50" />
             </button>
           </div>
-          <motion.div
-            whileHover={{ rotate: 6, scale: 1.05 }}
-            whileTap={{ scale: 0.94 }}
-            onHoverStart={() => setPerched(false)}
-            onHoverEnd={() => setPerched(true)}
-            onTapStart={() => setPerched(false)}
-            onTap={() => window.setTimeout(() => setPerched(true), 2400)}
-          >
-            <TrubitBadge className="size-11 shrink-0" flying={!perched} />
-          </motion.div>
         </div>
 
         <button
           onClick={onSearch}
-          className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-white/12 bg-white/[0.05] px-4 py-3.5 backdrop-blur-2xl"
+          className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-white/15 bg-white/[0.07] px-4 py-3.5 backdrop-blur-2xl transition-all duration-200 hover:bg-white/[0.12] hover:border-white/25 cursor-pointer shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
         >
-          <Search className="size-4 text-white/50" />
-          <span className="text-white/40">Search “truffle burger”, “sushi”…</span>
-          <SlidersHorizontal className="ml-auto size-4 text-white/50" />
+          <Search className="size-4 text-white/60" />
+          <span className="text-white/50 text-sm font-medium">Search “truffle burger”, “sushi”…</span>
+          <SlidersHorizontal className="ml-auto size-4 text-white/60" />
         </button>
       </div>
 
@@ -264,7 +289,19 @@ export function HomeScreen({
         ) : (
           <div className="space-y-5">
             {list.map((r, i) => (
-              <RestaurantCard key={r.id} restaurant={r} onOpen={onOpenRestaurant} index={i} />
+              <div key={r.id} className="relative">
+                {boostedIds.has(r.id) && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="mb-2 flex items-center gap-1.5 text-amber-400/80"
+                  >
+                    <Zap className="size-3" />
+                    <span className="text-[10px] tracking-[0.2em] uppercase">Promoted</span>
+                  </motion.div>
+                )}
+                <RestaurantCard restaurant={r} onOpen={onOpenRestaurant} index={i} />
+              </div>
             ))}
           </div>
         )}

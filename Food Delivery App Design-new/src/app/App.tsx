@@ -178,7 +178,7 @@ function HatSwitcher({ onSwitch }: { onSwitch: (r: Role) => void }) {
   if (!role) return null;
 
   return (
-    <div className="pointer-events-none absolute top-4 right-4 z-40 flex flex-col items-end gap-2">
+    <div className="pointer-events-none absolute top-5 right-5 z-40 flex flex-col items-end gap-2">
       <motion.button
         whileTap={{ scale: 0.94 }}
         onClick={() => setOpen(!open)}
@@ -288,11 +288,11 @@ function Shell() {
             <AnimatePresence mode="wait">
               <motion.div
                 key={key}
-                initial={{ opacity: 0, y: overlay ? 28 : 12, scale: overlay ? 0.985 : 1 }}
+                initial={{ opacity: 0, y: overlay ? 20 : 10, scale: overlay ? 0.98 : 0.99 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.32, ease: [0.22, 0.9, 0.3, 1] }}
-                className="min-h-full"
+                exit={{ opacity: 0, y: -8, scale: 0.99 }}
+                transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
+                className="min-h-full transition-colors duration-300"
               >
                 {!role ? (
                   <RolePicker />
@@ -341,7 +341,7 @@ function Shell() {
             </AnimatePresence>
           </div>
 
-          <HatSwitcher onSwitch={switchRole} />
+          {route.name === "tabs" && <HatSwitcher onSwitch={switchRole} />}
 
           <AnimatePresence>
             {role === "user" && route.name !== "cart" && route.name !== "track" && (
@@ -380,6 +380,10 @@ function Shell() {
             onOpenRestaurant={(id) => {
               setBirdy(false);
               openRestaurant(id);
+            }}
+            onOpenCart={() => {
+              setBirdy(false);
+              go({ name: "cart" });
             }}
           />
 

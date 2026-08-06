@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { RESTAURANTS, type Dish, type Nutrition } from "../data/catalog";
+import { persist, hydrate, subscribe, EVENTS } from "../lib/sync-engine";
 
 /* ================================================================== *
  * Roles
@@ -234,6 +235,9 @@ const initial: State = {
   bookings: [],
 };
 
+/* Hydrate platform state from localStorage so cross-profile data is persisted across refreshes */
+const hydratedInitial: State = hydrate<State>("platform_state", initial);
+
 function reducer(state: State, a: Action): State {
   switch (a.type) {
     case "setRole":
@@ -386,7 +390,50 @@ const DROPS = [
 ];
 
 export function PlatformProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initial);
+  const [state, dispatch] = useReducer(reducer, hydratedInitial);
+
+  // Persist platform state on every change
+  useEffect(() => {
+    persist("platform_state", state);
+  }, [state]);
+
+  // Subscribe to real-time order placements from User profile to generate Rider jobs and Partner sales
+  useEffect(() => {
+    const unsub = subscribe(EVENTS.ORDER_PLACED, (order: any) => {
+      if (order && order.id) {
+        // Push a real job to the rider app corresponding to this order
+        dispatch({
+          type: "pushJob",
+          job: {
+            id: `JOB-${order.id.replace("TRB-", "")}`,
+            restaurantId: order.restaurantId ?? "r1",
+            restaurantName: order.restaurantName ?? "Trubit Partner",
+            dropAddress: "Current User Location",
+            distanceKm: 2.4,
+            items: order.lines?.length ?? 2,
+            basePay: 40,
+            distancePay: 25,
+            surgePay: 20,
+            tip: 30,
+            stage: "offered",
+            offeredAt: Date.now(),
+          },
+        });
+        // Also increment order tracking in Partner analytics for the ordered items
+        order.lines?.forEach((line: any) => {
+          if (line.dish?.id) {
+            dispatch({
+              type: "trackEvent",
+              dishId: line.dish.id,
+              event: "orders",
+              revenue: (line.dish.price ?? 0) * (line.qty ?? 1),
+            });
+          }
+        });
+      }
+    });
+    return unsub;
+  }, []);
 
   // Holds are not forever. Sweep expired ones so stock returns to the pool.
   useEffect(() => {

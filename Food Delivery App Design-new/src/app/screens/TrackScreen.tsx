@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Glass, GlassButton, Divider, cx } from "../components/glass";
 import { rupees, useApp, type Order } from "../store/app-store";
+import { DarkMap, Marker } from "../components/DarkMap";
 
 const STEPS = [
   { id: 0, label: "Order confirmed", sub: "Restaurant accepted your order", icon: Check },
@@ -352,74 +353,44 @@ function CountdownRing({ seconds, total }: { seconds: number; total: number }) {
 }
 
 function MapCanvas({ step }: { step: number }) {
-  const progress = [0.05, 0.25, 0.62, 1][step] ?? 1;
-  // Sampled points along the delivery route for each stage.
-  const rider = [
-    { x: 44, y: 199 },
-    { x: 112, y: 178 },
-    { x: 236, y: 105 },
-    { x: 360, y: 50 },
-  ][step] ?? { x: 360, y: 50 };
+  // Use a central location (like Bangalore as default)
+  const center = { lat: 12.9716, lng: 77.5946 };
+  
+  const restaurant = { lat: 12.965, lng: 77.585 };
+  const user = { lat: 12.978, lng: 77.605 };
+  
+  // Sample path for the delivery route
+  const route = [
+    restaurant,
+    { lat: 12.969, lng: 77.590 },
+    { lat: 12.973, lng: 77.592 },
+    { lat: 12.976, lng: 77.599 },
+    user,
+  ];
+  
+  // Rider position based on step (0 to 3)
+  const riderPos = [
+    route[0], 
+    route[1], 
+    route[3], 
+    route[4]
+  ][step] ?? route[4];
+
+  const markers: Marker[] = [
+    { id: "res", lat: restaurant.lat, lng: restaurant.lng, kind: "restaurant" },
+    { id: "user", lat: user.lat, lng: user.lng, kind: "you" },
+    { id: "rider", lat: riderPos.lat, lng: riderPos.lng, kind: "rider" },
+  ];
+
   return (
     <div className="absolute inset-0 bg-[#0a0a0a]">
-      {/* grid streets */}
-      <svg className="absolute inset-0 size-full" viewBox="0 0 400 240" preserveAspectRatio="none">
-        {Array.from({ length: 9 }).map((_, i) => (
-          <line
-            key={`h${i}`}
-            x1="0"
-            y1={i * 30}
-            x2="400"
-            y2={i * 30}
-            stroke="white"
-            strokeOpacity="0.06"
-          />
-        ))}
-        {Array.from({ length: 14 }).map((_, i) => (
-          <line
-            key={`v${i}`}
-            x1={i * 30}
-            y1="0"
-            x2={i * 30}
-            y2="240"
-            stroke="white"
-            strokeOpacity="0.06"
-          />
-        ))}
-        <path
-          d="M40 200 C 120 200, 130 120, 200 120 S 300 60, 360 50"
-          fill="none"
-          stroke="white"
-          strokeOpacity="0.18"
-          strokeWidth="2"
-          strokeDasharray="6 6"
-        />
-        <motion.path
-          d="M40 200 C 120 200, 130 120, 200 120 S 300 60, 360 50"
-          fill="none"
-          stroke="white"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: progress }}
-          transition={{ duration: 1.4, ease: "easeInOut" }}
-        />
-        <circle cx="40" cy="200" r="5" fill="white" fillOpacity="0.55" />
-        <circle cx="360" cy="50" r="5" fill="white" />
-        <motion.g
-          animate={{ x: rider.x, y: rider.y }}
-          transition={{ duration: 1.4, ease: "easeInOut" }}
-        >
-          <motion.circle
-            r="12"
-            fill="white"
-            fillOpacity="0.18"
-            animate={{ r: [10, 18, 10], fillOpacity: [0.22, 0, 0.22] }}
-            transition={{ duration: 1.9, repeat: Infinity }}
-          />
-          <circle r="6" fill="white" />
-        </motion.g>
-      </svg>
+      <DarkMap 
+        center={center} 
+        route={route} 
+        markers={markers} 
+        zoomOut={1.2} 
+        className="w-full h-full" 
+      />
     </div>
   );
 }

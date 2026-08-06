@@ -45,7 +45,7 @@ export function Stepper({ dish, restaurantId }: { dish: Dish; restaurantId: stri
   }
 
   return (
-    <div className="relative h-10 w-[6.5rem]">
+    <div className="relative h-10 w-[6.5rem] select-none">
       <AnimatePresence initial={false} mode="popLayout">
         {qty === 0 ? (
           <motion.button
@@ -53,13 +53,13 @@ export function Stepper({ dish, restaurantId }: { dish: Dish; restaurantId: stri
             initial={{ opacity: 0, scale: 0.8, filter: "blur(4px)" }}
             animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
             exit={{ opacity: 0, scale: 0.8, filter: "blur(4px)" }}
-            whileTap={{ scale: 0.9 }}
+            whileTap={{ scale: 0.92 }}
             transition={SPRING}
             onClick={tryAdd}
-            className="absolute inset-0 overflow-hidden rounded-full border border-white/25 bg-white/[0.08] tracking-[0.14em] text-white uppercase backdrop-blur-xl"
+            className="absolute inset-0 overflow-hidden rounded-full border border-white/30 bg-white/[0.12] font-semibold tracking-[0.14em] text-white text-xs uppercase shadow-[0_4px_16px_rgba(0,0,0,0.6)] backdrop-blur-2xl transition-all duration-200 hover:bg-white/[0.22] hover:border-white/50 hover:shadow-[0_0_22px_rgba(255,255,255,0.35)] cursor-pointer"
           >
-            <Sheen duration={2.6} repeatDelay={5} />
-            <span className="relative">Add</span>
+            <Sheen duration={2.4} repeatDelay={4} />
+            <span className="relative font-bold">Add</span>
           </motion.button>
         ) : (
           <motion.div
@@ -68,14 +68,14 @@ export function Stepper({ dish, restaurantId }: { dish: Dish; restaurantId: stri
             animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
             exit={{ opacity: 0, scale: 0.8, filter: "blur(4px)" }}
             transition={SPRING}
-            className="absolute inset-0 flex items-center justify-between rounded-full bg-white px-1 text-black shadow-[0_0_24px_-4px_rgba(255,255,255,0.45)]"
+            className="absolute inset-0 flex items-center justify-between rounded-full bg-white px-1 text-black font-semibold shadow-[0_0_28px_-2px_rgba(255,255,255,0.65)]"
           >
             <button
               onClick={takeAway}
-              className="grid size-8 place-items-center rounded-full transition-colors hover:bg-black/10"
+              className="grid size-8 place-items-center rounded-full transition-colors hover:bg-black/10 active:bg-black/20 cursor-pointer"
               aria-label={`Remove one ${dish.name}`}
             >
-              <Minus className="size-4" />
+              <Minus className="size-4 text-black font-bold" />
             </button>
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.span
@@ -84,6 +84,7 @@ export function Stepper({ dish, restaurantId }: { dish: Dish; restaurantId: stri
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 10, opacity: 0 }}
                 transition={SPRING}
+                className="text-sm font-bold tracking-tight"
               >
                 {qty}
               </motion.span>
@@ -91,10 +92,10 @@ export function Stepper({ dish, restaurantId }: { dish: Dish; restaurantId: stri
             <button
               onClick={tryAdd}
               disabled={availableOf(dish) === 0}
-              className="grid size-8 place-items-center rounded-full transition-colors hover:bg-black/10 disabled:opacity-30"
+              className="grid size-8 place-items-center rounded-full transition-colors hover:bg-black/10 active:bg-black/20 disabled:opacity-30 cursor-pointer"
               aria-label={`Add one ${dish.name}`}
             >
-              <Plus className="size-4" />
+              <Plus className="size-4 text-black font-bold" />
             </button>
           </motion.div>
         )}
@@ -149,11 +150,11 @@ export function DishRow({
           </span>
         )}
       </div>
-      <div className="relative w-28 shrink-0">
+      <div className="flex flex-col items-center justify-between gap-3 shrink-0 pt-1">
         <motion.div
           whileHover={{ scale: 1.03 }}
           transition={SPRING}
-          className="relative h-28 w-28 overflow-hidden rounded-2xl border border-white/12 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.9)]"
+          className="relative h-24 w-28 overflow-hidden rounded-2xl border border-white/15 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.9)]"
         >
           <FoodImage
             angles={dish.angles}
@@ -164,9 +165,7 @@ export function DishRow({
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
           <Sheen duration={3} repeatDelay={7} />
         </motion.div>
-        <div className="absolute -bottom-3 left-1/2 -translate-x-1/2">
-          <Stepper dish={raw} restaurantId={restaurantId} />
-        </div>
+        <Stepper dish={raw} restaurantId={restaurantId} />
       </div>
     </div>
   );
