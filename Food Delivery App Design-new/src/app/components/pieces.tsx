@@ -155,7 +155,6 @@ export function DishRow({
           whileHover={{ scale: 1.03 }}
           transition={SPRING}
           className="relative h-24 w-28 overflow-hidden rounded-2xl border border-white/15 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.9)]"
-          style={{ willChange: "transform" }}
         >
           <FoodImage
             angles={dish.angles}
@@ -193,7 +192,6 @@ export function RestaurantCard({
         ...SPRING,
         delay: Math.min(index * 0.06, 0.36),
       }}
-      style={{ willChange: "transform" }}
     >
       <Glass
         whileHover={{ y: -4 }}
