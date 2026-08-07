@@ -424,7 +424,7 @@ export function Birdy({
       return;
     }
     const rec = new SR();
-    rec.continuous = false;
+    rec.continuous = true;
     rec.interimResults = true;
     rec.lang = "en-IN";
     rec.onresult = (e: SpeechRecognitionEvent) => {
@@ -432,6 +432,17 @@ export function Birdy({
         .map((r) => r[0].transcript)
         .join(" ");
       setHeard(text);
+
+      // --- Barge-in Logic ---
+      if (window.speechSynthesis.speaking && text.trim().length > 2) {
+         const spokenText = (window as any).__birdyUtterance?.text?.toLowerCase() || "";
+         const heardLower = text.toLowerCase().trim();
+         // If the user's speech isn't just an echo of the TTS, cancel TTS immediately.
+         if (!spokenText.includes(heardLower)) {
+            window.speechSynthesis.cancel();
+         }
+      }
+
       if (e.results[e.results.length - 1].isFinal) {
         const finalText = e.results[e.results.length - 1][0].transcript.trim();
         
@@ -587,9 +598,19 @@ export function Birdy({
     const fullText = `${intro} ${dishList} Say the number or name to add it to your bag.`;
 
     speak(fullText, () => {
-      setVoicePhase("cart_listen");
-      try { recRef.current?.start(); setListening(true); } catch {}
+      if (!listening) {
+        try { recRef.current?.start(); setListening(true); } catch {}
+      }
     });
+
+    // Start mic immediately after a tiny delay so the user can barge-in while she speaks
+    setVoicePhase("cart_listen");
+    setTimeout(() => {
+      if (!listening) {
+        try { recRef.current?.start(); setListening(true); } catch {}
+      }
+    }, 400);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results, selectedOption, skipClarification]);
 
