@@ -85,7 +85,7 @@ function Splash({ onDone }: { onDone: () => void }) {
           >
             <TrubitMark
               flying
-              className="h-40 text-white drop-shadow-[0_0_44px_rgba(255,255,255,0.35)]"
+              className="h-40 text-white"
             />
           </motion.div>
         </motion.div>
