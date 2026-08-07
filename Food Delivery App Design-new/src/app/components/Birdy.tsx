@@ -201,25 +201,37 @@ type Mood = {
 const MOODS: Mood[] = [
   {
     id: "sad",
-    words: ["sad", "down", "low", "rough day", "bad day", "tired", "exhausted", "stressed", "comfort food"],
+    words: ["sad", "down", "low", "rough day", "bad day", "tired", "exhausted", "stressed", "comfort food", "upset", "depressed", "gloomy", "miserable", "unhappy", "heartbro", "crying", "cried", "lonely", "alone", "lost", "empty inside", "drained", "overwhelm", "burnt out", "burnout", "broken", "hurt", "pain", "terrible", "worst", "awful", "horrible", "hopeless", "defeated", "helpless", "numb", "fed up", "sick of", "had enough", "give up", "done with", "over it", "can't take", "falling apart", "mess", "wreck", "shattered", "gutted", "devastat", "disappoint", "let down", "betray", "miss someone", "missing", "homesick", "grief", "mourn", "sorrow"],
     says: "Rough one. Warm, soft, no chewing required — comfort first.",
     wants: ["ramen", "noodle", "biryani", "dal", "pasta", "shake", "cheesecake", "soup", "pizza", "mac and cheese"],
   },
   {
     id: "happy",
-    words: ["happy", "great", "celebrat", "promoted", "good news", "excited", "celebration"],
+    words: ["happy", "great", "celebrat", "promoted", "good news", "excited", "celebration", "amazing", "fantastic", "wonderful", "awesome", "blessed", "grateful", "thankful", "joyful", "elated", "thrilled", "ecstatic", "proud", "accomplish", "achieved", "won", "winning", "success", "nailed", "crushed it", "killed it", "best day", "perfect day", "love life", "on top", "flying", "pumped", "stoked", "hyped", "vibing", "good mood", "feeling good", "feel good", "feeling great", "feel great", "feel amazing", "feeling amazing", "got engaged", "married", "birthday", "anniversary", "graduated", "new job", "raise", "bonus"],
     says: "Then we're going somewhere worth it. Signature plates only.",
     wants: ["omakase", "wagyu", "ribeye", "truffle", "tasting", "pavlova", "sushi", "lobster"],
   },
   {
+    id: "angry",
+    words: ["angry", "furious", "pissed", "annoyed", "irritat", "frustrated", "rage", "mad", "livid", "fuming", "triggered", "agitat", "hostile", "bitter", "resentful", "hate", "fight", "argument", "quarrel", "yelled", "screamed", "snapped", "lost my temper", "blood boil", "infuriat"],
+    says: "Channel that fire into something fiery on the plate. Spice it out.",
+    wants: ["chilli", "diavola", "rogan", "spicy", "hot", "pepper", "garlic", "basil", "piccante", "masala"],
+  },
+  {
+    id: "anxious",
+    words: ["anxious", "nervous", "worried", "panic", "restless", "uneasy", "tense", "overthink", "can't sleep", "insomnia", "exam", "interview", "presentation", "deadline", "pressure", "fear", "scared", "terrified", "freaking out", "butterflies", "jitter", "shaking", "trembl"],
+    says: "Deep breath. Let's get something warm and calming in you.",
+    wants: ["soup", "ramen", "dal", "tea", "toast", "noodle", "broth", "porridge"],
+  },
+  {
     id: "hungry",
-    words: ["starving", "very hungry", "famished", "so hungry", "empty"],
+    words: ["starving", "very hungry", "famished", "so hungry", "empty", "ravenous", "haven't eaten", "skipped lunch", "skipped breakfast", "need food", "dying of hunger", "stomach growl", "could eat a horse", "feed me"],
     says: "Volume, fast, hot. Nothing dainty.",
     wants: ["burger", "biryani", "pizza", "fried rice", "noodles", "fries"],
   },
   {
     id: "light",
-    words: ["light", "healthy", "clean", "gym", "diet", "fit", "salad", "protein"],
+    words: ["light", "healthy", "clean", "gym", "diet", "fit", "salad", "protein", "lean", "macro", "bulk", "cut", "calories", "keto", "low carb", "gains", "muscles", "workout", "post workout", "pre workout", "yoga", "detox", "cleanse", "wellness", "mindful eating"],
     says: "Keeping it clean. High protein, kilocalories in check.",
     wants: ["bowl", "berry", "cauliflower", "avocado", "toast", "yoghurt", "salad", "grilled"],
     minProtein: 14,
@@ -227,41 +239,71 @@ const MOODS: Mood[] = [
   },
   {
     id: "spicy",
-    words: ["spicy", "heat", "chilli", "chili", "hot food", "fiery"],
+    words: ["spicy", "heat", "chilli", "chili", "hot food", "fiery", "burn", "fire", "kick", "pungent", "wasabi", "habanero", "jalapeño", "sriracha", "tabasco", "tongue on fire"],
     says: "Heat it is. Bringing the chilli-forward end of the menu.",
     wants: ["chilli", "diavola", "rogan", "basil", "piccante", "garlic", "spicy"],
   },
   {
     id: "sweet",
-    words: ["sweet", "dessert", "sugar", "cake", "chocolate"],
+    words: ["sweet", "dessert", "sugar", "cake", "chocolate", "treat", "indulg", "craving sugar", "sweet tooth", "pastry", "brownie", "ice cream", "waffle", "pancake", "candy", "mithai"],
     says: "Straight to the sweet end. No arguments.",
     wants: ["cheesecake", "cupcake", "tiramisu", "gulab", "pavlova", "shake"],
   },
   {
     id: "veg",
-    words: ["veg", "vegetarian", "no meat", "plant"],
+    words: ["veg", "vegetarian", "no meat", "plant", "vegan", "no chicken", "no mutton", "no fish", "pure veg", "jain"],
     says: "Vegetarian only, filtered hard.",
     wants: [],
     vegOnly: true,
   },
   {
     id: "cheap",
-    words: ["broke", "cheap", "budget", "tight", "payday", "save"],
+    words: ["broke", "cheap", "budget", "tight", "payday", "save", "affordable", "inexpensive", "value", "pocket friendly", "low price", "under 200", "under 300", "no money", "short on cash", "wallet crying"],
     says: "Tight budget, no problem — best value per rupee, nothing padded.",
     wants: [],
   },
   {
     id: "late",
-    words: ["working late", "midnight", "late night", "overtime"],
+    words: ["working late", "midnight", "late night", "overtime", "night shift", "pulling an all nighter", "up late", "can't sleep", "awake at", "3 am", "2 am", "1 am", "still up", "night owl"],
     says: "Burning the midnight oil. Quick bites coming right up.",
     wants: ["pizza", "wrap", "roll", "sandwich", "burger", "fries"],
   },
   {
     id: "hangover",
-    words: ["hangover", "hungover", "greasy", "heavy", "headache"],
+    words: ["hangover", "hungover", "greasy", "heavy", "headache", "drank too much", "last night", "party", "wasted", "tipsy", "drunk", "booze", "shots", "tequila", "vodka", "beer", "wine night"],
     says: "Rough morning? Heavy, greasy comfort to the rescue.",
     wants: ["burger", "pizza", "fries", "bacon", "cheese", "fried"],
-  }
+  },
+  {
+    id: "bored",
+    words: ["bored", "boring", "nothing to do", "killing time", "procrastinat", "lazy", "chill", "chilling", "netflix", "watching", "scrolling", "couch", "sofa", "bed", "lounging", "doing nothing"],
+    says: "Boredom calls for something exciting on the plate. Let's spice up your day.",
+    wants: ["pizza", "burger", "fries", "wings", "dimsum", "nachos", "wrap"],
+  },
+  {
+    id: "nostalgic",
+    words: ["nostalgic", "miss home", "homesick", "childhood", "mom's food", "grandma", "dadi", "nani", "ghar ka khana", "home food", "remember", "old days", "throwback", "reminds me"],
+    says: "Nothing beats the taste of home. Let's find something that feels like a warm hug.",
+    wants: ["dal", "biryani", "roti", "paneer", "curry", "rice", "soup", "khichdi"],
+  },
+  {
+    id: "romantic",
+    words: ["date", "romantic", "girlfriend", "boyfriend", "partner", "anniversary", "valentine", "love", "couple", "special someone", "impress", "candlelight", "dinner for two"],
+    says: "Setting the mood with something special. Only the finest picks.",
+    wants: ["sushi", "truffle", "wagyu", "risotto", "burrata", "tiramisu", "pavlova", "wine"],
+  },
+  {
+    id: "sick",
+    words: ["sick", "unwell", "cold", "fever", "flu", "cough", "sore throat", "not feeling well", "under the weather", "stomach", "nauseous", "weak", "recover"],
+    says: "Get well soon! Something light and nourishing to help you recover.",
+    wants: ["soup", "broth", "dal", "toast", "rice", "porridge", "khichdi"],
+  },
+  {
+    id: "rainy",
+    words: ["rain", "rainy", "monsoon", "drizzle", "storm", "thunder", "cold outside", "wet", "cozy", "snuggle", "blanket", "warm up"],
+    says: "Perfect rainy-day food coming up. Warm, crispy, and soul-hugging.",
+    wants: ["pakora", "samosa", "chai", "soup", "maggi", "noodle", "ramen", "pizza"],
+  },
 ];
 
 type ClarificationOption = {
@@ -285,7 +327,7 @@ type ClarificationTree = {
 const CLARIFICATION_TREES: ClarificationTree[] = [
   {
     id: "spicy",
-    triggers: ["spicy", "heat", "chilli", "chili", "hot food", "fiery", "angry", "frustrated", "rage", "mad"],
+    triggers: ["spicy", "heat", "chilli", "chili", "hot food", "fiery", "angry", "frustrated", "rage", "mad", "furious", "pissed", "annoyed", "irritat", "livid", "fuming", "triggered", "fight", "argument"],
     question: "I hear that fiery energy! What kind of heat are you craving to hit the spot?",
     subtext: "Narrowing down your spice vibe ensures a guaranteed hit for your palate:",
     options: [
@@ -297,7 +339,7 @@ const CLARIFICATION_TREES: ClarificationTree[] = [
   },
   {
     id: "comfort",
-    triggers: ["sad", "down", "low", "rough day", "bad day", "tired", "exhausted", "stressed", "comfort food", "lonely", "relax", "rain"],
+    triggers: ["sad", "down", "low", "rough day", "bad day", "tired", "exhausted", "stressed", "comfort food", "lonely", "relax", "rain", "upset", "depressed", "gloomy", "miserable", "unhappy", "heartbro", "crying", "alone", "drained", "overwhelm", "burnt out", "broken", "hurt", "awful", "horrible", "hopeless", "defeated", "numb", "fed up", "mess", "shattered", "gutted", "disappoint", "grief", "anxious", "nervous", "worried", "panic", "uneasy", "bored", "boring", "lazy", "chill", "nostalgic", "miss home", "homesick", "sick", "unwell", "fever", "flu", "rainy", "monsoon", "cozy", "cold outside", "blanket"],
     question: "Long day, huh? Let's get you some comforting soul food to recharge. What sounds best?",
     subtext: "Pick your favorite comforting texture & aroma:",
     options: [
