@@ -405,6 +405,12 @@ export function Birdy({
     return false;
   }, [speak, reserve, addItem, track, onOpenCart, onClose]);
 
+  // Refs to access latest state in speech callbacks without recreating recognition
+  const voicePhaseRef = useRef(voicePhase);
+  useEffect(() => { voicePhaseRef.current = voicePhase; }, [voicePhase]);
+  const cartHandlerRef = useRef(handleVoiceCartAction);
+  useEffect(() => { cartHandlerRef.current = handleVoiceCartAction; }, [handleVoiceCartAction]);
+
   useEffect(() => {
     const win = window as WindowWithSpeech;
     const SR = win.SpeechRecognition ?? win.webkitSpeechRecognition;
@@ -413,7 +419,7 @@ export function Birdy({
       return;
     }
     const rec = new SR();
-    rec.continuous = true;
+    rec.continuous = false;
     rec.interimResults = true;
     rec.lang = "en-IN";
     rec.onresult = (e: SpeechRecognitionEvent) => {
@@ -424,16 +430,15 @@ export function Birdy({
       if (e.results[e.results.length - 1].isFinal) {
         const finalText = e.results[e.results.length - 1][0].transcript.trim();
         
-        // If we're in cart_listen phase, try to parse as cart command first
-        if (voicePhase === "cart_listen" || voicePhase === "confirmed") {
-          const handled = handleVoiceCartAction(finalText);
+        // If we're in cart_listen phase, try to parse as cart command
+        const currentPhase = voicePhaseRef.current;
+        if (currentPhase === "cart_listen" || currentPhase === "confirmed") {
+          const handled = cartHandlerRef.current(finalText);
           if (handled) return;
         }
 
         // Otherwise, treat as initial mood/food query
         setIsThinking(true);
-        rec.stop();
-        setListening(false);
         setTimeout(() => {
           setSubmitted(text);
           setIsThinking(false);
@@ -448,14 +453,15 @@ export function Birdy({
       setListening(false);
       if (e.error === "not-allowed") {
         setErrorMsg("Microphone access denied. Try typing!");
-      } else if (e.error !== "no-speech") {
+      } else if (e.error !== "no-speech" && e.error !== "aborted") {
         setErrorMsg("Didn't catch that. Try again?");
       }
       setTimeout(() => setErrorMsg(""), 3000);
     };
     recRef.current = rec;
     return () => { rec.abort?.(); window.speechSynthesis?.cancel(); };
-  }, [voicePhase, handleVoiceCartAction]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!submitted) return;
@@ -482,14 +488,14 @@ export function Birdy({
       setSelectedOption(null);
       setSkipClarification(false);
       setVoicePhase("listening");
-      speak("Hey! Tell me how you're feeling or what you're craving today.", () => {
-        try {
-          recRef.current?.start();
-          setListening(true);
-        } catch {
-          setErrorMsg("Microphone error");
-        }
-      });
+      // Speak greeting and start mic in parallel
+      speak("Hey! Tell me how you're feeling or what you're craving today.");
+      try {
+        recRef.current?.start();
+        setListening(true);
+      } catch {
+        setErrorMsg("Microphone error");
+      }
     }
   };
 

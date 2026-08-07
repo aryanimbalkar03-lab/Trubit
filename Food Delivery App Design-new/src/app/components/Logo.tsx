@@ -6,30 +6,22 @@ import { cx } from "./glass";
  * The Trubit mark — the supplied courier-bird artwork, cropped to the bird and
  * lifted clean off its black plate.
  *
- * The art is white on black, so we use it as a *luminance mask* over a
- * `currentColor` fill: white paints, black becomes genuine transparency. No
- * box, no blend-mode tricks, and the mark inherits text colour like an icon.
+ * The art is white-on-black. We use `mix-blend-mode: screen` so that
+ * the black background becomes fully transparent against any dark surface,
+ * leaving only the white bird visible. This works across all browsers
+ * (Chrome, Safari, Firefox) unlike luminance masking which Chrome does not
+ * support.
  *
- * The wing is a second copy of the same mask, clipped along the black gap
- * between the wing fan and the tail and hinged at the shoulder, so it beats
- * independently of the body.
+ * The wing is a second copy clipped along the gap between the wing fan and
+ * the tail, hinged at the shoulder, so it beats independently.
  *
- * Crop window inside the 1024×559 source: x 330→700, y 40→470 — the bird plus
- * enough headroom for the wing to swing without clipping.
+ * Crop window inside the 1024×559 source: x 330→700, y 40→470
  */
-const PLATE = {
+const CROP = {
   width: `${(1024 / 370) * 100}%`,
   height: `${(559 / 430) * 100}%`,
   left: `${(-330 / 370) * 100}%`,
   top: `${(-40 / 430) * 100}%`,
-  backgroundColor: "currentColor",
-  WebkitMaskImage: `url(${birdSrc})`,
-  maskImage: `url(${birdSrc})`,
-  WebkitMaskSize: "100% 100%",
-  maskSize: "100% 100%",
-  maskMode: "luminance",
-  WebkitMaskRepeat: "no-repeat",
-  maskRepeat: "no-repeat",
 } as const;
 
 /** Everything above/left of the wing–tail gap. */
@@ -61,7 +53,7 @@ export function TrubitMark({
   return (
     <motion.div
       className={cx("relative aspect-[370/430]", className)}
-      style={{ background: "transparent", overflow: "visible" }}
+      style={{ overflow: "visible" }}
       initial={animated ? { opacity: 0, scale: 0.9 } : undefined}
       animate={animated ? { opacity: 1, scale: 1 } : undefined}
       transition={{ duration: 0.5, ease: [0.22, 0.9, 0.25, 1] }}
@@ -70,21 +62,41 @@ export function TrubitMark({
       {/* Body, head, cap, tail and the order — rises on the downbeat */}
       <motion.div
         className="absolute inset-0 overflow-hidden"
-        style={{ transformOrigin: SHOULDER, clipPath: BODY_CLIP, background: "transparent" }}
+        style={{ transformOrigin: SHOULDER, clipPath: BODY_CLIP }}
         animate={flying ? { y: ["1.4%", "-1.4%"], rotate: [1, -1] } : undefined}
         transition={flying ? BEAT : undefined}
       >
-        <div className="absolute" style={PLATE} />
+        <img
+          src={birdSrc}
+          alt=""
+          className="absolute"
+          style={{
+            ...CROP,
+            mixBlendMode: "screen",
+            pointerEvents: "none",
+          }}
+          draggable={false}
+        />
       </motion.div>
 
       {/* The wing — hinged at the shoulder */}
       <motion.div
         className="absolute inset-0 overflow-hidden"
-        style={{ transformOrigin: SHOULDER, clipPath: WING_CLIP, background: "transparent" }}
+        style={{ transformOrigin: SHOULDER, clipPath: WING_CLIP }}
         animate={flying ? { rotate: [-12, 16], scaleY: [1, 0.9] } : undefined}
         transition={flying ? BEAT : undefined}
       >
-        <div className="absolute" style={PLATE} />
+        <img
+          src={birdSrc}
+          alt=""
+          className="absolute"
+          style={{
+            ...CROP,
+            mixBlendMode: "screen",
+            pointerEvents: "none",
+          }}
+          draggable={false}
+        />
       </motion.div>
     </motion.div>
   );
