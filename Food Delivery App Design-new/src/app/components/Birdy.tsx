@@ -35,6 +35,11 @@ function birdySpeak(text: string, onEnd?: () => void) {
     if (fallback) utter.voice = fallback;
   }
   if (onEnd) utter.onend = () => onEnd();
+  
+  // CRITICAL FIX: Keep utterance alive so Chromium garbage collector doesn't destroy it,
+  // which prevents onend from firing and freezes the UI in 'speaking' state.
+  (window as any).__birdyUtterance = utter;
+  
   window.speechSynthesis.speak(utter);
 }
 
@@ -488,14 +493,16 @@ export function Birdy({
       setSelectedOption(null);
       setSkipClarification(false);
       setVoicePhase("listening");
-      // Speak greeting and start mic in parallel
-      speak("Hey! Tell me how you're feeling or what you're craving today.");
-      try {
-        recRef.current?.start();
-        setListening(true);
-      } catch {
-        setErrorMsg("Microphone error");
-      }
+      // Speak greeting, then start mic ONLY after TTS finishes.
+      // If mic starts during TTS, it picks up the voice or times out due to silence.
+      speak("Hey! Tell me how you're feeling or what you're craving today.", () => {
+        try {
+          recRef.current?.start();
+          setListening(true);
+        } catch {
+          setErrorMsg("Microphone error");
+        }
+      });
     }
   };
 
@@ -592,7 +599,9 @@ export function Birdy({
     if (voicePhase !== "results") return;
     setVoicePhase("clarifying");
     const optionLabels = activeTree.options.map(o => o.label).join(", or ");
-    speak(`${activeTree.question} Your options are: ${optionLabels}. Which one sounds best?`);
+    speak(`${activeTree.question} Your options are: ${optionLabels}. Which one sounds best?`, () => {
+      try { recRef.current?.start(); setListening(true); } catch {}
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submitted, activeTree, selectedOption, skipClarification]);
 
