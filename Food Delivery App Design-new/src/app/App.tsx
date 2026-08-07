@@ -41,7 +41,7 @@ function Splash({ onDone }: { onDone: () => void }) {
       transition={{ duration: 0.4 }}
     >
       <video 
-        src="birdy.mov" 
+        src="birdy.mp4" 
         autoPlay 
         muted 
         playsInline 
