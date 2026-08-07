@@ -34,7 +34,12 @@ function birdySpeak(text: string, onEnd?: () => void) {
     const fallback = voices.find(v => v.lang.startsWith("en"));
     if (fallback) utter.voice = fallback;
   }
-  if (onEnd) utter.onend = () => onEnd();
+  }
+  
+  utter.onend = () => {
+    (window as any).__birdyUtterance = null;
+    if (onEnd) onEnd();
+  };
   
   // CRITICAL FIX: Keep utterance alive so Chromium garbage collector doesn't destroy it,
   // which prevents onend from firing and freezes the UI in 'speaking' state.
@@ -410,6 +415,14 @@ export function Birdy({
     return false;
   }, [speak, reserve, addItem, track, onOpenCart, onClose]);
 
+  // Warm up voices on mount to avoid the "male voice first" bug in Chrome
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+  }, []);
+
   // Refs to access latest state in speech callbacks without recreating recognition
   const voicePhaseRef = useRef(voicePhase);
   useEffect(() => { voicePhaseRef.current = voicePhase; }, [voicePhase]);
@@ -433,30 +446,40 @@ export function Birdy({
         .join(" ");
       setHeard(text);
 
+      const isSpeaking = window.speechSynthesis.speaking;
+      const spokenText = (window as any).__birdyUtterance?.text?.toLowerCase() || "";
+      const heardLower = text.toLowerCase().trim();
+      const isEcho = isSpeaking && spokenText.includes(heardLower);
+
       // --- Barge-in Logic ---
-      if (window.speechSynthesis.speaking && text.trim().length > 2) {
-         const spokenText = (window as any).__birdyUtterance?.text?.toLowerCase() || "";
-         const heardLower = text.toLowerCase().trim();
-         // If the user's speech isn't just an echo of the TTS, cancel TTS immediately.
-         if (!spokenText.includes(heardLower)) {
-            window.speechSynthesis.cancel();
-         }
+      if (isSpeaking && heardLower.length > 2 && !isEcho) {
+         window.speechSynthesis.cancel();
       }
 
       if (e.results[e.results.length - 1].isFinal) {
         const finalText = e.results[e.results.length - 1][0].transcript.trim();
+        const finalLower = finalText.toLowerCase();
+        const isFinalEcho = isSpeaking && spokenText.includes(finalLower);
         
         // If we're in cart_listen phase, try to parse as cart command
         const currentPhase = voicePhaseRef.current;
         if (currentPhase === "cart_listen" || currentPhase === "confirmed") {
           const handled = cartHandlerRef.current(finalText);
-          if (handled) return;
+          if (handled) {
+            if (isSpeaking) window.speechSynthesis.cancel();
+            return;
+          }
+          // If it wasn't a valid command and it's just an echo of her reading the list, ignore it
+          if (isFinalEcho) return;
         }
+
+        // If it's an echo, never treat it as a new search query (prevents infinite loop!)
+        if (isFinalEcho) return;
 
         // Otherwise, treat as initial mood/food query
         setIsThinking(true);
         setTimeout(() => {
-          setSubmitted(text);
+          setSubmitted(finalText);
           setIsThinking(false);
           setVoicePhase("results");
         }, 800);
