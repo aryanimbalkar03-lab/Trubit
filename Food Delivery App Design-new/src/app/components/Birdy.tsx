@@ -13,38 +13,67 @@ import { CITY, RESTAURANTS, distanceKm, type Dish } from "../data/catalog";
 import { sanitizeText, isPayloadSafe, checkRateLimit } from "../lib/security";
 
 /* ------------------------------------------------------------------ *
- * Birdy Text-to-Speech Engine
+ * Birdy Text-to-Speech Engine — Sequential, No-Echo Design
+ *
+ * RULES:
+ * 1. Never run mic and TTS at the same time (eliminates echo loops).
+ * 2. Lock to one voice on first use (no man→woman switching).
+ * 3. Always: speak → finish → THEN start mic.
  * ------------------------------------------------------------------ */
-function birdySpeak(text: string, onEnd?: () => void) {
+
+let _cachedVoice: SpeechSynthesisVoice | null = null;
+let _voiceResolved = false;
+
+function resolveBirdyVoice(): SpeechSynthesisVoice | null {
+  if (_voiceResolved) return _cachedVoice;
+  const voices = window.speechSynthesis?.getVoices() ?? [];
+  if (voices.length === 0) return null; // not loaded yet
+  _voiceResolved = true;
+  // Prefer a natural English female voice
+  _cachedVoice =
+    voices.find(v => /female|zira|samantha/i.test(v.name) && v.lang.startsWith("en")) ??
+    voices.find(v => /google.*uk/i.test(v.name) && v.lang.startsWith("en")) ??
+    voices.find(v => v.lang.startsWith("en-") && v.localService) ??
+    voices.find(v => v.lang.startsWith("en")) ??
+    null;
+  return _cachedVoice;
+}
+
+function birdySpeak(text: string, onEnd?: () => void): void {
   if (typeof window === "undefined" || !window.speechSynthesis) {
     onEnd?.();
     return;
   }
+  // Always cancel any ongoing speech first
   window.speechSynthesis.cancel();
+
   const utter = new SpeechSynthesisUtterance(text);
   utter.rate = 1.05;
-  utter.pitch = 1.15;
-  utter.volume = 0.9;
+  utter.pitch = 1.12;
+  utter.volume = 0.92;
   utter.lang = "en-IN";
-  // Try to pick a natural female voice
-  const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find(v => /female|zira|samantha|google.*in/i.test(v.name) && v.lang.startsWith("en"));
-  if (preferred) utter.voice = preferred;
-  else {
-    const fallback = voices.find(v => v.lang.startsWith("en"));
-    if (fallback) utter.voice = fallback;
-  }
-  
+
+  const voice = resolveBirdyVoice();
+  if (voice) utter.voice = voice;
+
   utter.onend = () => {
     (window as any).__birdyUtterance = null;
-    if (onEnd) onEnd();
+    onEnd?.();
   };
-  
-  // CRITICAL FIX: Keep utterance alive so Chromium garbage collector doesn't destroy it,
-  // which prevents onend from firing and freezes the UI in 'speaking' state.
+  utter.onerror = () => {
+    (window as any).__birdyUtterance = null;
+    onEnd?.();
+  };
+
+  // Prevent Chrome GC from killing the utterance before it finishes
   (window as any).__birdyUtterance = utter;
-  
   window.speechSynthesis.speak(utter);
+}
+
+/** Immediately stop Birdy from speaking. */
+function birdyShutUp(): void {
+  window.speechSynthesis?.cancel();
+  (window as any).__birdyUtterance = null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -359,19 +388,56 @@ export function Birdy({
   const [lastSpoken, setLastSpoken] = useState("");
   const recRef = useRef<SpeechRecognition | null>(null);
   const resultsRef = useRef<Result[]>([]);
+  // Guards to prevent duplicate speech triggers
+  const hasSpokenResultsRef = useRef(false);
+  const hasSpokenClarifyRef = useRef(false);
 
-  /* ---- Speak helper bound to component lifecycle ---- */
+  /* ---- Warm up TTS voices on mount ---- */
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        _voiceResolved = false; // re-resolve when voices change
+        resolveBirdyVoice();
+      };
+    }
+  }, []);
+
+  /* ---- Core helpers ---- */
+  const stopMic = useCallback(() => {
+    try { recRef.current?.stop(); } catch {}
+    setListening(false);
+  }, []);
+
+  const startMic = useCallback(() => {
+    try {
+      recRef.current?.start();
+      setListening(true);
+    } catch {
+      setErrorMsg("Microphone error — try again.");
+      setTimeout(() => setErrorMsg(""), 3000);
+    }
+  }, []);
+
   const speak = useCallback((text: string, onEnd?: () => void) => {
+    stopMic(); // NEVER run mic during TTS
     setSpeaking(true);
     setLastSpoken(text);
     birdySpeak(text, () => {
       setSpeaking(false);
       onEnd?.();
     });
-  }, []);
+  }, [stopMic]);
 
-  /* ---- Voice-to-Cart handler ---- */
-  const handleVoiceCartAction = useCallback((transcript: string) => {
+  /** Speak text, then automatically start mic when done */
+  const sayThenListen = useCallback((text: string) => {
+    speak(text, () => {
+      startMic();
+    });
+  }, [speak, startMic]);
+
+  /* ---- Voice-to-Cart handler (via ref for stable closure) ---- */
+  const handleVoiceCartAction = useCallback((transcript: string): boolean => {
     const action = parseVoiceCartCommand(transcript, resultsRef.current);
     if (action) {
       const dish = resultsRef.current[action.index];
@@ -383,14 +449,10 @@ export function Birdy({
             track(dish.id, "adds");
           }
         }
-        const confirmText = `Added ${action.qty > 1 ? action.qty + " " : ""}${dish.name} to your bag! Would you like anything else, or shall we checkout?`;
+        const confirmText = `Done! Added ${action.qty > 1 ? action.qty + " " : ""}${dish.name} to your bag. Want anything else, or shall I open checkout?`;
         setHeard(confirmText);
         setVoicePhase("confirmed");
-        speak(confirmText, () => {
-          // Re-listen for more commands
-          setVoicePhase("cart_listen");
-          try { recRef.current?.start(); setListening(true); } catch {}
-        });
+        sayThenListen(confirmText);
       }
       return true;
     }
@@ -405,29 +467,19 @@ export function Birdy({
     }
 
     if (isMoreIntent(transcript)) {
-      speak("Sure! Just tell me the number or name of the dish you want.", () => {
-        try { recRef.current?.start(); setListening(true); } catch {}
-      });
+      sayThenListen("Sure! Just tell me the number or name of the dish you'd like.");
       return true;
     }
 
     return false;
-  }, [speak, reserve, addItem, track, onOpenCart, onClose]);
+  }, [sayThenListen, speak, reserve, addItem, track, onOpenCart, onClose]);
 
-  // Warm up voices on mount to avoid the "male voice first" bug in Chrome
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.getVoices();
-      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-    }
-  }, []);
-
-  // Refs to access latest state in speech callbacks without recreating recognition
-  const voicePhaseRef = useRef(voicePhase);
-  useEffect(() => { voicePhaseRef.current = voicePhase; }, [voicePhase]);
   const cartHandlerRef = useRef(handleVoiceCartAction);
   useEffect(() => { cartHandlerRef.current = handleVoiceCartAction; }, [handleVoiceCartAction]);
+  const voicePhaseRef = useRef(voicePhase);
+  useEffect(() => { voicePhaseRef.current = voicePhase; }, [voicePhase]);
 
+  /* ---- Initialize SpeechRecognition ONCE ---- */
   useEffect(() => {
     const win = window as WindowWithSpeech;
     const SR = win.SpeechRecognition ?? win.webkitSpeechRecognition;
@@ -436,71 +488,59 @@ export function Birdy({
       return;
     }
     const rec = new SR();
-    rec.continuous = true;
+    rec.continuous = false;   // one utterance at a time — prevents echo
     rec.interimResults = true;
     rec.lang = "en-IN";
+
     rec.onresult = (e: SpeechRecognitionEvent) => {
-      const text = Array.from({ length: e.results.length }, (_, i) => e.results[i])
-        .map((r) => r[0].transcript)
-        .join(" ");
+      // Collect just the latest result's transcript
+      const lastResult = e.results[e.results.length - 1];
+      const text = lastResult[0].transcript;
       setHeard(text);
 
-      const isSpeaking = window.speechSynthesis.speaking;
-      const spokenText = (window as any).__birdyUtterance?.text?.toLowerCase() || "";
-      const heardLower = text.toLowerCase().trim();
-      const isEcho = isSpeaking && spokenText.includes(heardLower);
+      if (lastResult.isFinal) {
+        const finalText = text.trim();
+        if (!finalText) return;
 
-      // --- Barge-in Logic ---
-      if (isSpeaking && heardLower.length > 2 && !isEcho) {
-         window.speechSynthesis.cancel();
-      }
-
-      if (e.results[e.results.length - 1].isFinal) {
-        const finalText = e.results[e.results.length - 1][0].transcript.trim();
-        const finalLower = finalText.toLowerCase();
-        const isFinalEcho = isSpeaking && spokenText.includes(finalLower);
-        
-        // If we're in cart_listen phase, try to parse as cart command
-        const currentPhase = voicePhaseRef.current;
-        if (currentPhase === "cart_listen" || currentPhase === "confirmed") {
+        // If we're in cart phase, try cart actions first
+        const phase = voicePhaseRef.current;
+        if (phase === "cart_listen" || phase === "confirmed") {
           const handled = cartHandlerRef.current(finalText);
-          if (handled) {
-            if (isSpeaking) window.speechSynthesis.cancel();
-            return;
-          }
-          // If it wasn't a valid command and it's just an echo of her reading the list, ignore it
-          if (isFinalEcho) return;
+          if (handled) return;
         }
 
-        // If it's an echo, never treat it as a new search query (prevents infinite loop!)
-        if (isFinalEcho) return;
-
-        // Otherwise, treat as initial mood/food query
+        // Otherwise treat as mood/food query
         setIsThinking(true);
         setTimeout(() => {
+          hasSpokenResultsRef.current = false;
+          hasSpokenClarifyRef.current = false;
           setSubmitted(finalText);
           setIsThinking(false);
           setVoicePhase("results");
-        }, 800);
+        }, 600);
       }
     };
+
     rec.onend = () => {
       setListening(false);
     };
+
     rec.onerror = (e: Event & { error?: string }) => {
       setListening(false);
       if (e.error === "not-allowed") {
-        setErrorMsg("Microphone access denied. Try typing!");
+        setErrorMsg("Microphone access denied. Please allow mic access and try again.");
       } else if (e.error !== "no-speech" && e.error !== "aborted") {
-        setErrorMsg("Didn't catch that. Try again?");
+        setErrorMsg("Didn't catch that — try again?");
       }
       setTimeout(() => setErrorMsg(""), 3000);
     };
+
     recRef.current = rec;
-    return () => { rec.abort?.(); window.speechSynthesis?.cancel(); };
+    return () => { rec.abort?.(); birdyShutUp(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* ---- Extract budget/radius from speech ---- */
   useEffect(() => {
     if (!submitted) return;
     const b = budgetFrom(submitted);
@@ -511,34 +551,38 @@ export function Birdy({
     setSkipClarification(false);
   }, [submitted]);
 
+  /* ---- Mic toggle with barge-in ---- */
   const toggleMic = () => {
     if (!supported) return;
-    window.speechSynthesis?.cancel();
-    setSpeaking(false);
     setErrorMsg("");
-    if (listening) {
-      recRef.current?.stop();
-      setListening(false);
-      setVoicePhase("idle");
-    } else {
-      setHeard("");
-      setSubmitted("");
-      setSelectedOption(null);
-      setSkipClarification(false);
-      setVoicePhase("listening");
-      // Speak greeting, then start mic ONLY after TTS finishes.
-      // If mic starts during TTS, it picks up the voice or times out due to silence.
-      speak("Hey! Tell me how you're feeling or what you're craving today.", () => {
-        try {
-          recRef.current?.start();
-          setListening(true);
-        } catch {
-          setErrorMsg("Microphone error");
-        }
-      });
+
+    if (speaking) {
+      // BARGE-IN: User tapped mic while Birdy was speaking → stop her and listen
+      birdyShutUp();
+      setSpeaking(false);
+      startMic();
+      return;
     }
+
+    if (listening) {
+      // User tapped mic while listening → stop listening
+      stopMic();
+      setVoicePhase("idle");
+      return;
+    }
+
+    // Fresh start
+    setHeard("");
+    setSubmitted("");
+    setSelectedOption(null);
+    setSkipClarification(false);
+    hasSpokenResultsRef.current = false;
+    hasSpokenClarifyRef.current = false;
+    setVoicePhase("listening");
+    sayThenListen("Hey! Tell me how you're feeling or what you're craving today.");
   };
 
+  /* ---- Derived state ---- */
   const mood = useMemo(() => {
     const t = submitted.toLowerCase();
     if (!t) return null;
@@ -550,7 +594,6 @@ export function Birdy({
     const t = submitted.toLowerCase();
     const specific = CLARIFICATION_TREES.find((m) => m.triggers.some((w) => t.includes(w)));
     if (specific) return specific;
-    // fallback to general cuisine tree if they typed a long prompt or food intent
     if (t.length >= 3) return CLARIFICATION_TREES.find((m) => m.id === "general") ?? null;
     return null;
   }, [submitted]);
@@ -577,13 +620,11 @@ export function Birdy({
         mood?.wants.forEach((w) => {
           if (hay.includes(w)) score += 12;
         });
-        // High-conversion reinforcement when user clarifies their exact craving
         if (selectedOption) {
           selectedOption.keywords.forEach((w) => {
             if (hay.includes(w)) score += 35;
           });
         }
-        // direct words the person actually said
         t.split(/\s+/)
           .filter((w) => w.length > 3)
           .forEach((w) => {
@@ -603,50 +644,40 @@ export function Birdy({
     return out.sort((a, b) => b.score - a.score).slice(0, 8);
   }, [submitted, budget, radius, mood, selectedOption, effective, availableOf]);
 
-  // Keep resultsRef in sync for voice-to-cart handler
+  // Keep resultsRef in sync
   useEffect(() => { resultsRef.current = results; }, [results]);
 
-  // Speak results aloud when they appear (only during voice-initiated flow)
+  /* ---- Speak clarification question (triggered once when tree activates) ---- */
+  useEffect(() => {
+    if (!submitted || !activeTree || selectedOption || skipClarification) return;
+    if (voicePhase !== "results") return;
+    if (hasSpokenClarifyRef.current) return;
+    hasSpokenClarifyRef.current = true;
+    setVoicePhase("clarifying");
+    const optionLabels = activeTree.options.map(o => o.label).join(", or ");
+    sayThenListen(`${activeTree.question} Your options are: ${optionLabels}. Which one sounds best?`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submitted, activeTree, selectedOption, skipClarification, voicePhase]);
+
+  /* ---- Speak results (triggered once when results appear) ---- */
   useEffect(() => {
     if (voicePhase !== "results" && voicePhase !== "clarifying") return;
     if (!submitted || results.length === 0) return;
-    if (activeTree && !selectedOption && !skipClarification) return; // wait for clarification
+    if (activeTree && !selectedOption && !skipClarification) return; // wait for clarification first
+    if (hasSpokenResultsRef.current) return;
+    hasSpokenResultsRef.current = true;
 
     const top3 = results.slice(0, 3);
     const intro = selectedOption?.response || mood?.says || "Here's what I found for you.";
     const dishList = top3.map((r, i) =>
       `Number ${i + 1}: ${r.name} from ${r.restaurantName}, at ${r.price} rupees.`
     ).join(" ");
-    const fullText = `${intro} ${dishList} Say the number or name to add it to your bag.`;
+    const fullText = `${intro} ${dishList} Say a number or dish name to add it, or tap the mic to interrupt me anytime.`;
 
-    speak(fullText, () => {
-      if (!listening) {
-        try { recRef.current?.start(); setListening(true); } catch {}
-      }
-    });
-
-    // Start mic immediately after a tiny delay so the user can barge-in while she speaks
     setVoicePhase("cart_listen");
-    setTimeout(() => {
-      if (!listening) {
-        try { recRef.current?.start(); setListening(true); } catch {}
-      }
-    }, 400);
-
+    sayThenListen(fullText);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results, selectedOption, skipClarification]);
-
-  // Speak clarification questions aloud
-  useEffect(() => {
-    if (!submitted || !activeTree || selectedOption || skipClarification) return;
-    if (voicePhase !== "results") return;
-    setVoicePhase("clarifying");
-    const optionLabels = activeTree.options.map(o => o.label).join(", or ");
-    speak(`${activeTree.question} Your options are: ${optionLabels}. Which one sounds best?`, () => {
-      try { recRef.current?.start(); setListening(true); } catch {}
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [submitted, activeTree, selectedOption, skipClarification]);
+  }, [results, selectedOption, skipClarification, voicePhase]);
 
   const send = () => {
     if (!typed.trim()) return;
@@ -661,6 +692,8 @@ export function Birdy({
     }
     const clean = sanitizeText(typed.trim());
     setIsThinking(true);
+    hasSpokenResultsRef.current = false;
+    hasSpokenClarifyRef.current = false;
     setTimeout(() => {
       setSubmitted(clean);
       setHeard(clean);
