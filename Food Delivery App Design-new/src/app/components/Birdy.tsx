@@ -27,13 +27,17 @@ let _voiceResolved = false;
 function resolveBirdyVoice(): SpeechSynthesisVoice | null {
   if (_voiceResolved) return _cachedVoice;
   const voices = window.speechSynthesis?.getVoices() ?? [];
-  if (voices.length === 0) return null; // not loaded yet
+  if (voices.length === 0) return null;
   _voiceResolved = true;
-  // Prefer a natural English female voice
+  // Priority: Neural/Online voices (sound human) > named female > any English
   _cachedVoice =
-    voices.find(v => /female|zira|samantha/i.test(v.name) && v.lang.startsWith("en")) ??
-    voices.find(v => /google.*uk/i.test(v.name) && v.lang.startsWith("en")) ??
-    voices.find(v => v.lang.startsWith("en-") && v.localService) ??
+    voices.find(v => /online|natural/i.test(v.name) && /aria|jenny|sara|zira/i.test(v.name)) ??
+    voices.find(v => /online|natural/i.test(v.name) && v.lang.startsWith("en")) ??
+    voices.find(v => /google.*uk.*female/i.test(v.name)) ??
+    voices.find(v => /samantha|karen|moira|fiona|victoria|tessa/i.test(v.name)) ??
+    voices.find(v => /female|zira/i.test(v.name) && v.lang.startsWith("en")) ??
+    voices.find(v => /google/i.test(v.name) && v.lang.startsWith("en")) ??
+    voices.find(v => v.lang.startsWith("en-") && !v.localService) ??
     voices.find(v => v.lang.startsWith("en")) ??
     null;
   return _cachedVoice;
@@ -48,10 +52,10 @@ function birdySpeak(text: string, onEnd?: () => void): void {
   window.speechSynthesis.cancel();
 
   const utter = new SpeechSynthesisUtterance(text);
-  utter.rate = 1.05;
-  utter.pitch = 1.12;
-  utter.volume = 0.92;
-  utter.lang = "en-IN";
+  utter.rate = 0.92;   // Slightly slower = more natural, less robotic
+  utter.pitch = 1.0;   // Natural pitch, no chipmunk effect
+  utter.volume = 0.95;
+  utter.lang = "en-US"; // en-US has better voice options than en-IN
 
   const voice = resolveBirdyVoice();
   if (voice) utter.voice = voice;
@@ -90,9 +94,6 @@ function parseVoiceCartCommand(
   if (!transcript || results.length === 0) return null;
   const t = transcript.toLowerCase().trim();
 
-  // Must contain an "add" intent
-  if (!/\b(add|want|get|order|give|put)\b/.test(t)) return null;
-
   // Parse quantity words
   const qtyMap: Record<string, number> = {
     one: 1, two: 2, three: 3, four: 4, five: 5,
@@ -102,7 +103,7 @@ function parseVoiceCartCommand(
   const qtyMatch = t.match(/\b(one|two|three|four|five|[1-5])\s+(?:of|x)\b/);
   if (qtyMatch) qty = qtyMap[qtyMatch[1]] ?? 1;
 
-  // Parse ordinal references: "the first one", "number 2", "the second"
+  // Parse ordinal references: "first", "the second one", "third", etc.
   const ordinals: Record<string, number> = {
     first: 0, "1st": 0, second: 1, "2nd": 1, third: 2, "3rd": 2,
     fourth: 3, "4th": 3, fifth: 4, "5th": 4, sixth: 5, "6th": 5,
@@ -115,14 +116,14 @@ function parseVoiceCartCommand(
     }
   }
 
-  // Parse "number X"
-  const numMatch = t.match(/\bnumber\s+(\d+)\b/);
+  // Parse "number X" or just bare "X" (e.g., user says "1" or "number 2")
+  const numMatch = t.match(/\b(?:number\s+)?(\d+)\b/);
   if (numMatch) {
     const idx = parseInt(numMatch[1], 10) - 1;
     if (idx >= 0 && idx < results.length) return { index: idx, qty };
   }
 
-  // Fuzzy match against result dish names
+  // Fuzzy match against result dish names (no "add" word needed)
   const words = t.split(/\s+/).filter(w => w.length > 2);
   let bestIdx = -1;
   let bestScore = 0;
@@ -544,11 +545,15 @@ export function Birdy({
         const finalText = text.trim();
         if (!finalText) return;
 
-        // If we're in cart phase, try cart actions first
         const phase = voicePhaseRef.current;
+
+        // In cart phase: handle cart commands, checkout, more — but NEVER fall through to mood query
         if (phase === "cart_listen" || phase === "confirmed") {
           const handled = cartHandlerRef.current(finalText);
           if (handled) return;
+          // Didn't understand → ask again, do NOT restart the whole mood loop
+          // Auto-restart mic via onend handler below
+          return;
         }
 
         // Otherwise treat as mood/food query
@@ -565,6 +570,14 @@ export function Birdy({
 
     rec.onend = () => {
       setListening(false);
+      // Auto-restart mic if we're in a phase that expects more speech
+      const phase = voicePhaseRef.current;
+      if (phase === "cart_listen" || phase === "confirmed" || phase === "listening" || phase === "clarifying") {
+        // Small delay to avoid rapid restart loops
+        setTimeout(() => {
+          try { rec.start(); setListening(true); } catch {}
+        }, 300);
+      }
     };
 
     rec.onerror = (e: Event & { error?: string }) => {
@@ -712,9 +725,9 @@ export function Birdy({
     const top3 = results.slice(0, 3);
     const intro = selectedOption?.response || mood?.says || "Here's what I found for you.";
     const dishList = top3.map((r, i) =>
-      `Number ${i + 1}: ${r.name} from ${r.restaurantName}, at ${r.price} rupees.`
-    ).join(" ");
-    const fullText = `${intro} ${dishList} Say a number or dish name to add it, or tap the mic to interrupt me anytime.`;
+      `Number ${i + 1},  ${r.name},  from ${r.restaurantName},  ${r.price} rupees.`
+    ).join("  ...  ");
+    const fullText = `${intro} ...  ${dishList} ...  Just say the number to add it. Like, one, or two, or three.`;
 
     setVoicePhase("cart_listen");
     sayThenListen(fullText);
