@@ -56,51 +56,51 @@ export type Restaurant = {
 
 export const IMAGES = {
   burger1:
-    "https://images.unsplash.com/photo-1761315413256-e149b40f577b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_4.jpg",
   burger2:
-    "https://images.unsplash.com/photo-1761315413695-5dcd5c318b31?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_8.jpg",
   burger3:
-    "https://images.unsplash.com/photo-1761315413686-8467379d8715?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_13.jpg",
   burger4:
-    "https://images.unsplash.com/photo-1761315412811-4525e421e00b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_22.jpg",
   burger5:
-    "https://images.unsplash.com/photo-1651993841930-946a700c1524?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_18.jpg",
   plate:
-    "https://images.unsplash.com/photo-1692197275931-0793e08efcc1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_3.jpg",
   pizza1:
-    "https://images.unsplash.com/photo-1621510564330-c87695020b53?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_14.jpg",
   pizza2:
-    "https://images.unsplash.com/photo-1669717879542-65eb286d1b23?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_9.jpg",
   sushi1:
-    "https://images.unsplash.com/photo-1666307534071-3c794b101c82?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_12.jpg",
   sushi2:
-    "https://images.unsplash.com/photo-1785502108468-9bc43aa6d83e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_21.jpg",
   sushi3:
-    "https://images.unsplash.com/photo-1534604973900-c43ab4c2e0ab?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_11.jpg",
   indian1:
-    "https://images.unsplash.com/photo-1589302168068-964664d93dc0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_17.jpg",
   indian2:
-    "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_2.jpg",
   indian3:
-    "https://images.unsplash.com/photo-1716550781939-beb7d7247aae?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_5.jpg",
   dessert1:
-    "https://images.unsplash.com/photo-1740594967618-23cd757b9291?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_6.jpg",
   dessert2:
-    "https://images.unsplash.com/photo-1759524322924-2024f209a011?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_19.jpg",
   dessert3:
-    "https://images.unsplash.com/photo-1758652561808-a0d9337fd57a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_16.jpg",
   interior1:
-    "https://images.unsplash.com/photo-1583354608715-177553a4035e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_1.jpg",
   interior2:
-    "https://images.unsplash.com/photo-1709548145082-04d0cde481d4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_0.jpg",
   interior3:
-    "https://images.unsplash.com/photo-1570560258879-af7f8e1447ac?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_7.jpg",
   noodles1:
-    "https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_15.jpg",
   noodles2:
-    "https://images.unsplash.com/photo-1612927601601-6638404737ce?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_20.jpg",
   noodles3:
-    "https://images.unsplash.com/photo-1784378578794-f973c7ad4a86?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "./img/img_10.jpg",
 };
 
 export const CATEGORIES = [
