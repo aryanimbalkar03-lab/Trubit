@@ -34,7 +34,6 @@ function birdySpeak(text: string, onEnd?: () => void) {
     const fallback = voices.find(v => v.lang.startsWith("en"));
     if (fallback) utter.voice = fallback;
   }
-  }
   
   utter.onend = () => {
     (window as any).__birdyUtterance = null;
