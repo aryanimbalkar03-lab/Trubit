@@ -29,102 +29,24 @@ type Route =
 
 function Splash({ onDone }: { onDone: () => void }) {
   useEffect(() => {
-    const t = window.setTimeout(onDone, 3400);
+    // Wait exactly 2 seconds as requested, then dismiss splash
+    const t = window.setTimeout(onDone, 2000);
     return () => window.clearTimeout(t);
   }, [onDone]);
 
-  const letters = "TRUBIT".split("");
-
   return (
     <motion.div
-      className="absolute inset-0 z-50 grid place-items-center overflow-hidden bg-black"
-      exit={{ opacity: 0, filter: "blur(12px)" }}
-      transition={{ duration: 0.6 }}
+      className="absolute inset-0 z-50 overflow-hidden bg-black flex items-center justify-center"
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.4 }}
     >
-      <Aurora />
-
-      {/* The flight path the courier traces in */}
-      <svg
-        className="pointer-events-none absolute inset-0 size-full text-white/20"
-        viewBox="0 0 400 800"
-        fill="none"
-        preserveAspectRatio="none"
-        aria-hidden
-      >
-        <motion.path
-          d="M-40 620C90 600 150 470 200 352"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeDasharray="3 9"
-          strokeLinecap="round"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: [0, 1, 0] }}
-          transition={{ duration: 1.9, times: [0, 0.55, 1], ease: "easeOut" }}
-        />
-      </svg>
-
-      <div className="relative text-center">
-        {/* Bird flies in from the lower left, banks, then settles */}
-        <motion.div
-          className="mx-auto w-fit"
-          style={{ background: "transparent", overflow: "visible" }}
-          initial={{ x: -220, y: 190, scale: 0.35, opacity: 0, rotate: -22 }}
-          animate={{
-            x: [-220, -90, 0, 0],
-            y: [190, 60, -6, 0],
-            scale: [0.35, 0.72, 1.06, 1],
-            opacity: [0, 1, 1, 1],
-            rotate: [-22, -12, 4, 0],
-          }}
-          transition={{ duration: 1.85, times: [0, 0.45, 0.8, 1], ease: [0.2, 0.7, 0.3, 1] }}
-        >
-          <motion.div
-            animate={{ y: [0, -5, 0] }}
-            transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut", delay: 1.85 }}
-            style={{ background: "transparent" }}
-          >
-            <TrubitMark
-              flying
-              className="h-40 text-white"
-            />
-          </motion.div>
-        </motion.div>
-
-        {/* Name reveal — letters land one by one under the bird */}
-        <div className="mt-6 flex justify-center overflow-hidden">
-          {letters.map((ch, i) => (
-            <motion.span
-              key={`${ch}-${i}`}
-              initial={{ y: "110%", opacity: 0, filter: "blur(8px)" }}
-              animate={{ y: "0%", opacity: 1, filter: "blur(0px)" }}
-              transition={{
-                delay: 1.5 + i * 0.075,
-                duration: 0.6,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-              className="inline-block text-white"
-              style={{ letterSpacing: "0.22em" }}
-            >
-              {ch}
-            </motion.span>
-          ))}
-        </div>
-
-        <motion.p
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 2.15, duration: 0.6 }}
-          className="mt-2 tracking-[0.28em] text-white/40 uppercase"
-        >
-          Zero commission food delivery
-        </motion.p>
-        <motion.div
-          initial={{ scaleX: 0 }}
-          animate={{ scaleX: 1 }}
-          transition={{ delay: 2.3, duration: 1, ease: "easeInOut" }}
-          className="mx-auto mt-8 h-px w-40 origin-left bg-gradient-to-r from-transparent via-white/60 to-transparent"
-        />
-      </div>
+      <video 
+        src="/birdy.mov" 
+        autoPlay 
+        muted 
+        playsInline 
+        className="w-full h-full object-cover"
+      />
     </motion.div>
   );
 }
