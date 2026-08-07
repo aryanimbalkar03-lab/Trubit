@@ -55,12 +55,23 @@ export function TrackScreen({
       completeRef.current(order.id);
       return;
     }
+    const delay = step === 0 ? 8000 : step === 1 ? 12000 : 15000;
     const t = window.setTimeout(() => {
       setStep((s) => s + 1);
-      setEta((e) => Math.max(e - 9, 0));
-    }, 4000);
+      setEta((e) => {
+        if (step === 0) return Math.max(e - Math.round(e * 0.15), 0);
+        if (step === 1) return Math.max(e - Math.round(e * 0.45), 0);
+        return 0;
+      });
+    }, delay);
     return () => window.clearTimeout(t);
   }, [step, order.id, cancelled]);
+
+  useEffect(() => {
+    if (step >= 3 || cancelled || eta <= 0) return;
+    const t = window.setTimeout(() => setEta((e) => Math.max(e - 1, 0)), 60000);
+    return () => window.clearTimeout(t);
+  }, [eta, step, cancelled]);
 
   // The cancel window ticks down in real time and then simply closes.
   useEffect(() => {

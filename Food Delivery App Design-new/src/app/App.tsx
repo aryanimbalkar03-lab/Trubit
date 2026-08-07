@@ -67,6 +67,7 @@ function Splash({ onDone }: { onDone: () => void }) {
         {/* Bird flies in from the lower left, banks, then settles */}
         <motion.div
           className="mx-auto w-fit"
+          style={{ background: "transparent", overflow: "visible" }}
           initial={{ x: -220, y: 190, scale: 0.35, opacity: 0, rotate: -22 }}
           animate={{
             x: [-220, -90, 0, 0],
@@ -80,6 +81,7 @@ function Splash({ onDone }: { onDone: () => void }) {
           <motion.div
             animate={{ y: [0, -5, 0] }}
             transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut", delay: 1.85 }}
+            style={{ background: "transparent" }}
           >
             <TrubitMark
               flying

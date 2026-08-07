@@ -61,6 +61,7 @@ export function TrubitMark({
   return (
     <motion.div
       className={cx("relative aspect-[370/430]", className)}
+      style={{ background: "transparent", overflow: "visible" }}
       initial={animated ? { opacity: 0, scale: 0.9 } : undefined}
       animate={animated ? { opacity: 1, scale: 1 } : undefined}
       transition={{ duration: 0.5, ease: [0.22, 0.9, 0.25, 1] }}
@@ -69,7 +70,7 @@ export function TrubitMark({
       {/* Body, head, cap, tail and the order — rises on the downbeat */}
       <motion.div
         className="absolute inset-0 overflow-hidden"
-        style={{ transformOrigin: SHOULDER, clipPath: BODY_CLIP }}
+        style={{ transformOrigin: SHOULDER, clipPath: BODY_CLIP, background: "transparent" }}
         animate={flying ? { y: ["1.4%", "-1.4%"], rotate: [1, -1] } : undefined}
         transition={flying ? BEAT : undefined}
       >
@@ -79,7 +80,7 @@ export function TrubitMark({
       {/* The wing — hinged at the shoulder */}
       <motion.div
         className="absolute inset-0 overflow-hidden"
-        style={{ transformOrigin: SHOULDER, clipPath: WING_CLIP }}
+        style={{ transformOrigin: SHOULDER, clipPath: WING_CLIP, background: "transparent" }}
         animate={flying ? { rotate: [-12, 16], scaleY: [1, 0.9] } : undefined}
         transition={flying ? BEAT : undefined}
       >

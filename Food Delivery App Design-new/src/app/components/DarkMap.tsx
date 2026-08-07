@@ -14,7 +14,7 @@ import { Utensils } from "lucide-react";
  * body for <GoogleMap mapId=… /> and every caller keeps working: the props
  * are already lat/lng.
  */
-export const GOOGLE_MAPS_API_KEY = "YOUR_API_KEY_HERE";
+export const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY || "";
 
 /** Google's official dark style, kept here so the vector fallback matches it. */
 const PALETTE = {
@@ -68,7 +68,7 @@ export function DarkMap({
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
   });
 
-  if (GOOGLE_MAPS_API_KEY === "YOUR_API_KEY_HERE" || !isLoaded) {
+  if (!GOOGLE_MAPS_API_KEY || !isLoaded) {
     return (
       <SvgMapFallback
         markers={markers}

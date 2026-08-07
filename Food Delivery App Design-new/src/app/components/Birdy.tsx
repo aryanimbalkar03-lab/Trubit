@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Mic, MicOff, CornerDownLeft, Sparkles, ShoppingBag, ChevronRight } from "lucide-react";
+import { Mic, MicOff, CornerDownLeft, Sparkles, ShoppingBag, ChevronRight, Volume2 } from "lucide-react";
 import { Sheet } from "./Sheet";
 import { Glass, GlassButton, Chip, cx, Sheen } from "./glass";
 import { TrubitMark } from "./Logo";
@@ -11,6 +11,105 @@ import { rupees, listedElsewhere, useApp } from "../store/app-store";
 import { usePlatform } from "../store/platform";
 import { CITY, RESTAURANTS, distanceKm, type Dish } from "../data/catalog";
 import { sanitizeText, isPayloadSafe, checkRateLimit } from "../lib/security";
+
+/* ------------------------------------------------------------------ *
+ * Birdy Text-to-Speech Engine
+ * ------------------------------------------------------------------ */
+function birdySpeak(text: string, onEnd?: () => void) {
+  if (typeof window === "undefined" || !window.speechSynthesis) {
+    onEnd?.();
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 1.05;
+  utter.pitch = 1.15;
+  utter.volume = 0.9;
+  utter.lang = "en-IN";
+  // Try to pick a natural female voice
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(v => /female|zira|samantha|google.*in/i.test(v.name) && v.lang.startsWith("en"));
+  if (preferred) utter.voice = preferred;
+  else {
+    const fallback = voices.find(v => v.lang.startsWith("en"));
+    if (fallback) utter.voice = fallback;
+  }
+  if (onEnd) utter.onend = () => onEnd();
+  window.speechSynthesis.speak(utter);
+}
+
+/* ------------------------------------------------------------------ *
+ * Voice-to-Cart Command Parser
+ * Parses voice commands like "add the first one", "add number 2",
+ * "add paneer tikka", "add two of the third"
+ * ------------------------------------------------------------------ */
+type VoiceCartAction = { index: number; qty: number; matchedName?: string } | null;
+
+function parseVoiceCartCommand(
+  transcript: string,
+  results: { name: string }[]
+): VoiceCartAction {
+  if (!transcript || results.length === 0) return null;
+  const t = transcript.toLowerCase().trim();
+
+  // Must contain an "add" intent
+  if (!/\b(add|want|get|order|give|put)\b/.test(t)) return null;
+
+  // Parse quantity words
+  const qtyMap: Record<string, number> = {
+    one: 1, two: 2, three: 3, four: 4, five: 5,
+    "1": 1, "2": 2, "3": 3, "4": 4, "5": 5,
+  };
+  let qty = 1;
+  const qtyMatch = t.match(/\b(one|two|three|four|five|[1-5])\s+(?:of|x)\b/);
+  if (qtyMatch) qty = qtyMap[qtyMatch[1]] ?? 1;
+
+  // Parse ordinal references: "the first one", "number 2", "the second"
+  const ordinals: Record<string, number> = {
+    first: 0, "1st": 0, second: 1, "2nd": 1, third: 2, "3rd": 2,
+    fourth: 3, "4th": 3, fifth: 4, "5th": 4, sixth: 5, "6th": 5,
+    seventh: 6, "7th": 6, eighth: 7, "8th": 7,
+  };
+
+  for (const [word, idx] of Object.entries(ordinals)) {
+    if (t.includes(word) && idx < results.length) {
+      return { index: idx, qty };
+    }
+  }
+
+  // Parse "number X"
+  const numMatch = t.match(/\bnumber\s+(\d+)\b/);
+  if (numMatch) {
+    const idx = parseInt(numMatch[1], 10) - 1;
+    if (idx >= 0 && idx < results.length) return { index: idx, qty };
+  }
+
+  // Fuzzy match against result dish names
+  const words = t.split(/\s+/).filter(w => w.length > 2);
+  let bestIdx = -1;
+  let bestScore = 0;
+  results.forEach((r, i) => {
+    const name = r.name.toLowerCase();
+    let score = 0;
+    words.forEach(w => { if (name.includes(w)) score++; });
+    if (score > bestScore) { bestScore = score; bestIdx = i; }
+  });
+  if (bestIdx >= 0 && bestScore >= 1) {
+    return { index: bestIdx, qty, matchedName: results[bestIdx].name };
+  }
+
+  return null;
+}
+
+/** Check if transcript is a "checkout" intent */
+function isCheckoutIntent(transcript: string): boolean {
+  return /\b(checkout|check out|place order|done|that'?s? (?:all|it)|finish|proceed|go ahead|bag|cart)\b/i.test(transcript);
+}
+
+/** Check if transcript is a "yes, more" intent */
+function isMoreIntent(transcript: string): boolean {
+  return /\b(yes|yeah|more|another|else|also|and|something else|keep going)\b/i.test(transcript);
+}
 /* ------------------------------------------------------------------ *
  * Speech API Typings
  * ------------------------------------------------------------------ */
@@ -232,8 +331,8 @@ export function Birdy({
   onOpenRestaurant: (id: string) => void;
   onOpenCart?: () => void;
 }) {
-  const { itemCount, subtotal, cartRestaurant } = useApp();
-  const { effective, availableOf } = usePlatform();
+  const { itemCount, subtotal, cartRestaurant, addItem } = useApp();
+  const { effective, availableOf, reserve, track } = usePlatform();
 
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState("");
@@ -246,7 +345,65 @@ export function Birdy({
   const [errorMsg, setErrorMsg] = useState("");
   const [selectedOption, setSelectedOption] = useState<ClarificationOption | null>(null);
   const [skipClarification, setSkipClarification] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [voicePhase, setVoicePhase] = useState<"idle" | "listening" | "clarifying" | "results" | "cart_listen" | "confirmed">("idle");
+  const [lastSpoken, setLastSpoken] = useState("");
   const recRef = useRef<SpeechRecognition | null>(null);
+  const resultsRef = useRef<Result[]>([]);
+
+  /* ---- Speak helper bound to component lifecycle ---- */
+  const speak = useCallback((text: string, onEnd?: () => void) => {
+    setSpeaking(true);
+    setLastSpoken(text);
+    birdySpeak(text, () => {
+      setSpeaking(false);
+      onEnd?.();
+    });
+  }, []);
+
+  /* ---- Voice-to-Cart handler ---- */
+  const handleVoiceCartAction = useCallback((transcript: string) => {
+    const action = parseVoiceCartCommand(transcript, resultsRef.current);
+    if (action) {
+      const dish = resultsRef.current[action.index];
+      if (dish) {
+        for (let i = 0; i < action.qty; i++) {
+          const res = reserve(dish, 1);
+          if (res.ok) {
+            addItem(dish, dish.restaurantId);
+            track(dish.id, "adds");
+          }
+        }
+        const confirmText = `Added ${action.qty > 1 ? action.qty + " " : ""}${dish.name} to your bag! Would you like anything else, or shall we checkout?`;
+        setHeard(confirmText);
+        setVoicePhase("confirmed");
+        speak(confirmText, () => {
+          // Re-listen for more commands
+          setVoicePhase("cart_listen");
+          try { recRef.current?.start(); setListening(true); } catch {}
+        });
+      }
+      return true;
+    }
+
+    if (isCheckoutIntent(transcript)) {
+      speak("Opening your bag now!");
+      setVoicePhase("idle");
+      if (onOpenCart) {
+        setTimeout(() => { onClose(); onOpenCart(); }, 600);
+      }
+      return true;
+    }
+
+    if (isMoreIntent(transcript)) {
+      speak("Sure! Just tell me the number or name of the dish you want.", () => {
+        try { recRef.current?.start(); setListening(true); } catch {}
+      });
+      return true;
+    }
+
+    return false;
+  }, [speak, reserve, addItem, track, onOpenCart, onClose]);
 
   useEffect(() => {
     const win = window as WindowWithSpeech;
@@ -256,7 +413,7 @@ export function Birdy({
       return;
     }
     const rec = new SR();
-    rec.continuous = false;
+    rec.continuous = true;
     rec.interimResults = true;
     rec.lang = "en-IN";
     rec.onresult = (e: SpeechRecognitionEvent) => {
@@ -265,26 +422,40 @@ export function Birdy({
         .join(" ");
       setHeard(text);
       if (e.results[e.results.length - 1].isFinal) {
+        const finalText = e.results[e.results.length - 1][0].transcript.trim();
+        
+        // If we're in cart_listen phase, try to parse as cart command first
+        if (voicePhase === "cart_listen" || voicePhase === "confirmed") {
+          const handled = handleVoiceCartAction(finalText);
+          if (handled) return;
+        }
+
+        // Otherwise, treat as initial mood/food query
         setIsThinking(true);
+        rec.stop();
+        setListening(false);
         setTimeout(() => {
           setSubmitted(text);
           setIsThinking(false);
+          setVoicePhase("results");
         }, 800);
       }
     };
-    rec.onend = () => setListening(false);
+    rec.onend = () => {
+      setListening(false);
+    };
     rec.onerror = (e: Event & { error?: string }) => {
       setListening(false);
       if (e.error === "not-allowed") {
         setErrorMsg("Microphone access denied. Try typing!");
-      } else {
+      } else if (e.error !== "no-speech") {
         setErrorMsg("Didn't catch that. Try again?");
       }
       setTimeout(() => setErrorMsg(""), 3000);
     };
     recRef.current = rec;
-    return () => rec.abort?.();
-  }, []);
+    return () => { rec.abort?.(); window.speechSynthesis?.cancel(); };
+  }, [voicePhase, handleVoiceCartAction]);
 
   useEffect(() => {
     if (!submitted) return;
@@ -298,21 +469,27 @@ export function Birdy({
 
   const toggleMic = () => {
     if (!supported) return;
+    window.speechSynthesis?.cancel();
+    setSpeaking(false);
     setErrorMsg("");
     if (listening) {
       recRef.current?.stop();
       setListening(false);
+      setVoicePhase("idle");
     } else {
       setHeard("");
       setSubmitted("");
       setSelectedOption(null);
       setSkipClarification(false);
-      try {
-        recRef.current?.start();
-        setListening(true);
-      } catch {
-        setErrorMsg("Microphone error");
-      }
+      setVoicePhase("listening");
+      speak("Hey! Tell me how you're feeling or what you're craving today.", () => {
+        try {
+          recRef.current?.start();
+          setListening(true);
+        } catch {
+          setErrorMsg("Microphone error");
+        }
+      });
     }
   };
 
@@ -380,6 +557,39 @@ export function Birdy({
     return out.sort((a, b) => b.score - a.score).slice(0, 8);
   }, [submitted, budget, radius, mood, selectedOption, effective, availableOf]);
 
+  // Keep resultsRef in sync for voice-to-cart handler
+  useEffect(() => { resultsRef.current = results; }, [results]);
+
+  // Speak results aloud when they appear (only during voice-initiated flow)
+  useEffect(() => {
+    if (voicePhase !== "results" && voicePhase !== "clarifying") return;
+    if (!submitted || results.length === 0) return;
+    if (activeTree && !selectedOption && !skipClarification) return; // wait for clarification
+
+    const top3 = results.slice(0, 3);
+    const intro = selectedOption?.response || mood?.says || "Here's what I found for you.";
+    const dishList = top3.map((r, i) =>
+      `Number ${i + 1}: ${r.name} from ${r.restaurantName}, at ${r.price} rupees.`
+    ).join(" ");
+    const fullText = `${intro} ${dishList} Say the number or name to add it to your bag.`;
+
+    speak(fullText, () => {
+      setVoicePhase("cart_listen");
+      try { recRef.current?.start(); setListening(true); } catch {}
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results, selectedOption, skipClarification]);
+
+  // Speak clarification questions aloud
+  useEffect(() => {
+    if (!submitted || !activeTree || selectedOption || skipClarification) return;
+    if (voicePhase !== "results") return;
+    setVoicePhase("clarifying");
+    const optionLabels = activeTree.options.map(o => o.label).join(", or ");
+    speak(`${activeTree.question} Your options are: ${optionLabels}. Which one sounds best?`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submitted, activeTree, selectedOption, skipClarification]);
+
   const send = () => {
     if (!typed.trim()) return;
     const rateCheck = checkRateLimit("birdy_query", 8, 10);
@@ -409,21 +619,29 @@ export function Birdy({
             animate={
               isThinking
                 ? { rotate: [0, -10, 10, -10, 10, 0], scale: 1.1 }
+                : speaking
+                ? { y: [0, -3, 0], scale: 1.05 }
                 : results.length > 0 && submitted
                 ? { y: [0, -6, 0], scale: 1.1 }
                 : listening
                 ? { y: [0, -4, 0] }
                 : {}
             }
-            transition={{ duration: isThinking ? 0.5 : 0.9, repeat: isThinking || listening ? Infinity : 0 }}
+            transition={{ duration: isThinking ? 0.5 : speaking ? 0.6 : 0.9, repeat: isThinking || listening || speaking ? Infinity : 0 }}
           >
-            <TrubitMark flying={listening || isThinking} className="h-11 text-white" />
+            <TrubitMark flying={listening || isThinking || speaking} className="h-11 text-white" />
           </motion.div>
           <div className="min-w-0">
             <p className="text-white font-semibold">Birdy AI Assistant</p>
             <p className="text-sm text-white/70">
               {isThinking
                 ? "Analyzing flavor profile and best matches..."
+                : speaking
+                ? "🔊 Speaking..."
+                : voicePhase === "cart_listen"
+                ? "🎤 Listening — say a dish name or number to add it..."
+                : voicePhase === "confirmed"
+                ? "✅ Added to your bag!"
                 : listening
                 ? "Listening to your craving…"
                 : selectedOption
@@ -449,12 +667,28 @@ export function Birdy({
             disabled={!supported}
             className={cx(
               "relative grid size-20 place-items-center rounded-full border transition-colors duration-300",
-              listening
+              speaking
+                ? "border-purple-400/60 bg-purple-500/20 text-purple-300"
+                : listening
                 ? "border-white bg-white text-black"
                 : "border-white/20 bg-white/[0.06] text-white disabled:opacity-40",
             )}
           >
-            {listening && (
+            {speaking && (
+              <>
+                <motion.span
+                  className="absolute inset-0 rounded-full bg-purple-400/25"
+                  animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: "easeOut" }}
+                />
+                <motion.span
+                  className="absolute inset-0 rounded-full bg-purple-400/15"
+                  animate={{ scale: [1, 1.5], opacity: [0.4, 0] }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: "easeOut", delay: 0.6 }}
+                />
+              </>
+            )}
+            {listening && !speaking && (
               <>
                 <motion.span
                   className="absolute inset-0 rounded-full bg-white/25"
@@ -468,7 +702,11 @@ export function Birdy({
                 />
               </>
             )}
-            {supported ? <Mic className="relative size-7" /> : <MicOff className="relative size-7" />}
+            {speaking
+              ? <Volume2 className="relative size-7" />
+              : supported
+              ? <Mic className="relative size-7" />
+              : <MicOff className="relative size-7" />}
           </motion.button>
 
           <AnimatePresence mode="wait">
