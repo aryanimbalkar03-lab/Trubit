@@ -29,8 +29,8 @@ type Route =
 
 function Splash({ onDone }: { onDone: () => void }) {
   useEffect(() => {
-    // Wait exactly 2 seconds as requested, then dismiss splash
-    const t = window.setTimeout(onDone, 2000);
+    // Wait exactly 3 seconds as requested, then dismiss splash
+    const t = window.setTimeout(onDone, 3000);
     return () => window.clearTimeout(t);
   }, [onDone]);
 
