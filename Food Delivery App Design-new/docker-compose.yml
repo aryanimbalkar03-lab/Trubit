@@ -1,0 +1,11 @@
+services:
+  trubit-web:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: trubit-web
+    restart: always
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production

@@ -19,9 +19,22 @@
       <meta name="twitter:title" content="Trubit — Zero Commission Food Delivery" />
       <meta name="twitter:description" content="Zero commission food delivery. Connecting customers with local restaurants seamlessly." />
       <link rel="manifest" href="/manifest.json" />
-      <meta name="robots" content="noindex, nofollow" />
-      <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
+      
+      <!-- SEO & Production Indexing -->
+      <meta name="robots" content="index, follow" />
+      <meta name="google-site-verification" content="YOUR_GOOGLE_SITE_VERIFICATION_CODE" />
 
+      <!-- Google tag (gtag.js) - Google Analytics -->
+      <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'G-XXXXXXXXXX');
+      </script>
+
+      <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
     </head>
 
     <body>

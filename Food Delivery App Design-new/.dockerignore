@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.gitignore
+.env
+.DS_Store
+README.md
+Dockerfile
+docker-compose.yml
+download_images.py
