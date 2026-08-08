@@ -62,7 +62,12 @@ export function SearchScreen({
             <input
               autoFocus
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(e) => {
+                setQ(e.target.value);
+                if (e.target.value.length > 2) {
+                  import('../lib/telemetry').then(({ trackEvent }) => trackEvent('search_query', { query: e.target.value }));
+                }
+              }}
               placeholder="Restaurants, dishes, cuisines"
               className="min-w-0 flex-1 bg-transparent text-white placeholder:text-white/35 outline-none"
             />

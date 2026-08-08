@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNo
 import { RESTAURANTS, type Dish, type Restaurant } from "../data/catalog";
 import { persist, hydrate, emit, EVENTS, startOrderLifecycle } from "../lib/sync-engine";
 import { trubitFetch } from "../lib/api";
+import { trackEvent } from "../lib/telemetry";
 
 // When the app store initializes, we log the active Session ID 
 // to prove the backend integration is ready.
@@ -168,11 +169,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const subtotal = state.cart.reduce((s, l) => s + l.dish.price * l.qty, 0);
     return {
       ...state,
-      addItem: (dish, restaurantId) => dispatch({ type: "add", dish, restaurantId }),
+      addItem: (dish, restaurantId) => {
+        trackEvent('add_to_cart', {
+          item_id: dish.id,
+          item_name: dish.name,
+          price: dish.price,
+          restaurant_id: restaurantId,
+        });
+        dispatch({ type: "add", dish, restaurantId });
+      },
       removeItem: (dishId) => dispatch({ type: "remove", dishId }),
       clearCart: () => dispatch({ type: "clear" }),
       toggleFav: (restaurantId) => dispatch({ type: "toggleFav", restaurantId }),
       placeOrder: (order) => {
+        trackEvent('place_order', {
+          transaction_id: order.id,
+          value: order.total,
+          restaurant_id: order.restaurantId,
+          items: order.lines.map(l => ({ item_id: l.dish.id, quantity: l.qty }))
+        });
         dispatch({ type: "placeOrder", order });
         /* Cross-profile sync: notify rider & partner dashboards */
         emit(EVENTS.ORDER_PLACED, order);

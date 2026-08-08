@@ -170,7 +170,10 @@ function Shell() {
     scrollRef.current?.scrollTo({ top: 0 });
   };
 
-  const openRestaurant = (id: string) => go({ name: "restaurant", id });
+  const openRestaurant = (id: string) => {
+    import('./lib/telemetry').then(({ trackEvent }) => trackEvent('view_restaurant', { restaurant_id: id }));
+    go({ name: "restaurant", id });
+  };
   const backToTabs = () => go({ name: "tabs" });
 
   const switchTab = (t: string) => {
