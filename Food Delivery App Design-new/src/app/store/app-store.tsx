@@ -1,6 +1,13 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
 import { RESTAURANTS, type Dish, type Restaurant } from "../data/catalog";
 import { persist, hydrate, emit, EVENTS, startOrderLifecycle } from "../lib/sync-engine";
+import { trubitFetch } from "../lib/api";
+
+// When the app store initializes, we log the active Session ID 
+// to prove the backend integration is ready.
+if (typeof window !== "undefined") {
+  console.log("[Trubit Backend] Initialized with Session ID:", localStorage.getItem('trubit_session_id'));
+}
 
 export type CartLine = { dish: Dish; qty: number };
 
